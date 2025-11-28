@@ -28,6 +28,15 @@ else
   echo "Ninja not found, using Make build system"
 fi
 
+# Check for linker
+if command -v ld.lld &> /dev/null || command -v lld &> /dev/null; then
+  LINKER_OPTION="-DLLVM_USE_LINKER=lld"
+  echo "Using lld as linker"
+else
+  LINKER_OPTION=""
+  echo "lld not found, using default linker"
+fi
+
 download() {
   echo "Downloading LLVM ${LLVM_VERSION}..."
   "${SCRIPT_DIR}/scripts/download_llvm.sh"
@@ -81,7 +90,7 @@ conf() {
     -DLLVM_EXTERNAL_PROJECTS='LLTA;clang-plugin' \
     -DLLVM_ENABLE_PROJECTS='clang' \
     -DCLANG_SOURCE_DIR="${LLVM_PROJECT_DIR}/clang" \
-    -DLLVM_USE_LINKER=lld \
+    ${LINKER_OPTION} \
     -G"${BUILD_SYSTEM}"
   cp build/compile_commands.json .
   echo "Configuration complete."
