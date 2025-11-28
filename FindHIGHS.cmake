@@ -1,0 +1,52 @@
+#### Find HiGHS library
+# Looks for HiGHS in common installation locations
+
+if (NOT HIGHS_FOUND)
+
+    # Hardcoded search paths
+    set(SEARCH_PATHS_FOR_HEADERS
+            "$ENV{HIGHS_HOME}/include"
+            "${CMAKE_SOURCE_DIR}/externalDeps/highs/include"
+            "${CMAKE_SOURCE_DIR}/../externalDeps/highs/include"
+            "/usr/local/include/highs"
+            "/usr/include/highs"
+            "/opt/homebrew/include/highs"
+            )
+
+    set(SEARCH_PATHS_FOR_LIBRARIES
+            "$ENV{HIGHS_HOME}/lib"
+            "${CMAKE_SOURCE_DIR}/externalDeps/highs/lib"
+            "${CMAKE_SOURCE_DIR}/../externalDeps/highs/lib"
+            "/usr/local/lib"
+            "/usr/lib"
+            "/opt/homebrew/lib"
+            )
+
+    find_path(HIGHS_INCLUDE_DIR Highs.h
+            PATHS ${SEARCH_PATHS_FOR_HEADERS}
+            )
+
+    find_library(HIGHS_LIBRARY
+            NAMES highs libhighs
+            PATHS ${SEARCH_PATHS_FOR_LIBRARIES}
+            )
+
+    # setup header file directories
+    set(HIGHS_INCLUDE_DIRS ${HIGHS_INCLUDE_DIR})
+
+    # setup library files
+    set(HIGHS_LIBRARIES ${HIGHS_LIBRARY})
+
+endif ()
+
+# Check that HiGHS was successfully found
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(HIGHS DEFAULT_MSG HIGHS_INCLUDE_DIRS HIGHS_LIBRARIES)
+
+# Hide variables from CMake-Gui options
+mark_as_advanced(
+        HIGHS_INCLUDE_DIRS
+        HIGHS_INCLUDE_DIR
+        HIGHS_LIBRARIES
+        HIGHS_LIBRARY
+)

@@ -6,10 +6,36 @@ LLVM_VERSION="20.1.8"
 LLVM_PROJECT_DIR="externalDeps/llvm-project-${LLVM_VERSION}.src"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Check for compilers
+if command -v clang &> /dev/null && command -v clang++ &> /dev/null; then
+  C_COMPILER=clang
+  CXX_COMPILER=clang++
+  echo "Using clang/clang++ as compilers"
+else
+  C_COMPILER="${CC:-cc}"
+  CXX_COMPILER="${CXX:-c++}"
+  echo "clang not found, using default compilers: $C_COMPILER/$CXX_COMPILER"
+fi
+
+# Check for build system
+if command -v ninja &> /dev/null; then
+  BUILD_SYSTEM="Ninja"
+  BUILD_COMMAND="ninja"
+  echo "Using Ninja build system"
+else
+  BUILD_SYSTEM="Unix Makefiles"
+  BUILD_COMMAND="make"
+  echo "Ninja not found, using Make build system"
+fi
+
 download() {
   echo "Downloading LLVM ${LLVM_VERSION}..."
   "${SCRIPT_DIR}/scripts/download_llvm.sh"
   echo "LLVM downloaded and extracted."
+
+  echo "Downloading HiGHS optimizer..."
+  "${SCRIPT_DIR}/scripts/download_highs.sh"
+  echo "HiGHS downloaded and extracted."
 }
 
 apply_patch() {
@@ -40,7 +66,7 @@ conf() {
   fi
 
   echo "Configuring LLVM build..."
-  CC=clang CXX=clang++ cmake \
+  CC="$C_COMPILER" CXX="$CXX_COMPILER" cmake \
     -S "${LLVM_PROJECT_DIR}/llvm" \
     -B build \
     -DCMAKE_BUILD_TYPE=Debug \
@@ -56,7 +82,7 @@ conf() {
     -DLLVM_ENABLE_PROJECTS='clang' \
     -DCLANG_SOURCE_DIR="${LLVM_PROJECT_DIR}/clang" \
     -DLLVM_USE_LINKER=lld \
-    -GNinja
+    -G"${BUILD_SYSTEM}"
   cp build/compile_commands.json .
   echo "Configuration complete."
 }
@@ -67,7 +93,7 @@ build() {
     exit 1
   fi
   cd build
-  ninja llta LoopBoundPlugin
+  $BUILD_COMMAND llta LoopBoundPlugin
   cd ..
 }
 
@@ -77,7 +103,7 @@ build_all() {
     exit 1
   fi
   cd build
-  ninja
+  $BUILD_COMMAND
   cd ..
 }
 

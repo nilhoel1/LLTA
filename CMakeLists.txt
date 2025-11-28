@@ -45,11 +45,11 @@ option(LLTA_ENABLE_GUROBI "Enable Gurobi optimizer support" ON)
 if(LLTA_ENABLE_GUROBI)
   find_package(GUROBI)
   if(GUROBI_FOUND)
-    message(STATUS "Gurobi found - building with optimizer support")
+    message(STATUS "Gurobi found - building with Gurobi optimizer support")
     add_definitions(-DENABLE_GUROBI)
     set(GUROBI_LIBS ${GUROBI_CXX_LIBRARY})
   else()
-    message(WARNING "Gurobi not found - building without optimizer support")
+    message(WARNING "Gurobi not found - building without Gurobi optimizer support")
     set(GUROBI_INCLUDE_DIRS "")
     set(GUROBI_LIBS "")
   endif()
@@ -59,7 +59,27 @@ else()
   set(GUROBI_LIBS "")
 endif()
 
-include_directories(include ${LLVM_BINARY_DIR}/lib/Target/ARM ${LLVM_SOURCE_DIR}/lib/Target/ARM ${LLVM_BINARY_DIR}/lib/Target/RISCV ${LLVM_SOURCE_DIR}/lib/Target/RISCV ${LLVM_BINARY_DIR}/lib/Target/MSP430 ${LLVM_SOURCE_DIR}/lib/Target/MSP430 ${GUROBI_INCLUDE_DIRS})
+# Make HiGHS optional
+option(LLTA_ENABLE_HIGHS "Enable HiGHS optimizer support" ON)
+
+if(LLTA_ENABLE_HIGHS)
+  find_package(HIGHS)
+  if(HIGHS_FOUND)
+    message(STATUS "HiGHS found - building with HiGHS optimizer support")
+    add_definitions(-DENABLE_HIGHS)
+    set(HIGHS_LIBS ${HIGHS_LIBRARIES})
+  else()
+    message(WARNING "HiGHS not found - building without HiGHS optimizer support")
+    set(HIGHS_INCLUDE_DIRS "")
+    set(HIGHS_LIBS "")
+  endif()
+else()
+  message(STATUS "HiGHS support disabled")
+  set(HIGHS_INCLUDE_DIRS "")
+  set(HIGHS_LIBS "")
+endif()
+
+include_directories(include ${LLVM_BINARY_DIR}/lib/Target/ARM ${LLVM_SOURCE_DIR}/lib/Target/ARM ${LLVM_BINARY_DIR}/lib/Target/RISCV ${LLVM_SOURCE_DIR}/lib/Target/RISCV ${LLVM_BINARY_DIR}/lib/Target/MSP430 ${LLVM_SOURCE_DIR}/lib/Target/MSP430 ${GUROBI_INCLUDE_DIRS} ${HIGHS_INCLUDE_DIRS})
 
 add_llvm_tool(llta
   LLTA.cpp
@@ -72,6 +92,6 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 export_executable_symbols_for_plugins(llta)
