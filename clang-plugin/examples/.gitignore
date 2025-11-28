@@ -1,0 +1,9 @@
+# Ignore generated files
+*.json
+*.ll
+*.o
+*.S
+*.bc
+*.out
+*.dylib
+*.so

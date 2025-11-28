@@ -1,0 +1,441 @@
+
+build/msp.elf:     file format elf32-msp430
+
+
+Disassembly of section __reset_vector:
+
+0000fffe <__msp430_resetvec_hook>:
+__msp430_resetvec_hook():
+    fffe:	7e 41       	interrupt service routine at 0x417e
+
+Disassembly of section .rodata:
+
+00004000 <.rodata>:
+    4000:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4004:	98 41 
+    4006:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    400a:	98 41 
+    400c:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4010:	98 41 
+    4012:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4016:	98 41 
+    4018:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    401c:	98 41 
+    401e:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4022:	98 41 
+    4024:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4028:	98 41 
+    402a:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    402e:	98 41 
+    4030:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4034:	98 41 
+    4036:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    403a:	98 41 
+    403c:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4040:	98 41 
+    4042:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4046:	98 41 
+    4048:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    404c:	98 41 
+    404e:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4052:	98 41 
+    4054:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4058:	98 41 
+    405a:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    405e:	98 41 
+    4060:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4064:	98 41 
+    4066:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    406a:	98 41 
+    406c:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4070:	98 41 
+    4072:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4076:	98 41 
+    4078:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    407c:	98 41 
+    407e:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4082:	98 41 
+    4084:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4088:	98 41 
+    408a:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    408e:	98 41 
+    4090:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    4094:	98 41 
+    4096:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    409a:	98 41 
+    409c:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40a0:	98 41 
+    40a2:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40a6:	98 41 
+    40a8:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40ac:	98 41 
+    40ae:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40b2:	98 41 
+    40b4:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40b8:	98 41 
+    40ba:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40be:	98 41 
+    40c0:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40c4:	98 41 
+    40c6:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40ca:	98 41 
+    40cc:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40d0:	98 41 
+    40d2:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40d6:	98 41 
+    40d8:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40dc:	98 41 
+    40de:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40e2:	98 41 
+    40e4:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40e8:	98 41 
+    40ea:	98 41 98 41 	mov	16792(r1),16792(r8);0x04198, 0x4198
+    40ee:	98 41 
+    40f0:	ba 41 ba 41 	pop	16826(r10)		;
+    40f4:	ba 41 ba 41 	pop	16826(r10)		;
+    40f8:	ba 41 ba 41 	pop	16826(r10)		;
+    40fc:	ba 41 ba 41 	pop	16826(r10)		;
+    4100:	ba 41 ba 41 	pop	16826(r10)		;
+    4104:	ba 41 ba 41 	pop	16826(r10)		;
+    4108:	ba 41 ba 41 	pop	16826(r10)		;
+    410c:	ba 41 ba 41 	pop	16826(r10)		;
+    4110:	ba 41 ba 41 	pop	16826(r10)		;
+    4114:	ba 41 ba 41 	pop	16826(r10)		;
+    4118:	ba 41 ba 41 	pop	16826(r10)		;
+    411c:	ba 41 ba 41 	pop	16826(r10)		;
+    4120:	ba 41 ba 41 	pop	16826(r10)		;
+    4124:	ba 41 ba 41 	pop	16826(r10)		;
+    4128:	ba 41 ba 41 	pop	16826(r10)		;
+    412c:	ba 41 ba 41 	pop	16826(r10)		;
+    4130:	ba 41 ba 41 	pop	16826(r10)		;
+    4134:	ba 41 ba 41 	pop	16826(r10)		;
+    4138:	ba 41 ba 41 	pop	16826(r10)		;
+    413c:	ba 41 ba 41 	pop	16826(r10)		;
+    4140:	ba 41 ba 41 	pop	16826(r10)		;
+    4144:	ba 41 ba 41 	pop	16826(r10)		;
+    4148:	ba 41 ba 41 	pop	16826(r10)		;
+    414c:	ba 41 ba 41 	pop	16826(r10)		;
+    4150:	ba 41 ba 41 	pop	16826(r10)		;
+    4154:	ba 41 ba 41 	pop	16826(r10)		;
+    4158:	ba 41 ba 41 	pop	16826(r10)		;
+    415c:	ba 41 ba 41 	pop	16826(r10)		;
+    4160:	ba 41 ba 41 	pop	16826(r10)		;
+    4164:	ba 41 ba 41 	pop	16826(r10)		;
+    4168:	dc 41 dc 41 	mov.b	16860(r1),16860(r12);0x041dc, 0x41dc
+    416c:	dc 41 
+    416e:	dc 41 dc 41 	mov.b	16860(r1),16860(r12);0x041dc, 0x41dc
+    4172:	dc 41 
+    4174:	dc 41 dc 41 	mov.b	16860(r1),16860(r12);0x041dc, 0x41dc
+    4178:	dc 41 
+    417a:	
+Disassembly of section .upper.data:
+
+00010000 <__high_dataend-0x2>:
+   10000:	01 00       	mova	@r0,	r1	;
+
+Disassembly of section .heap:
+
+00001c00 <__heap_start__>:
+__heap_start__():
+    1c00:	00 00       	beq			
+	...
+
+Disassembly of section .text:
+
+0000417e <__crt0_start>:
+__crt0_start():
+    417e:	81 00 00 2c 	mova	#11264,	r1	;0x02c00
+
+00004182 <__crt0_call_main>:
+__crt0_call_main():
+    4182:	0c 43       	clr	r12		;
+
+00004184 <.Loc.254.1>:
+    4184:	b0 13 ee 41 	calla	#16878		;0x041ee
+
+00004188 <swi120>:
+swi120():
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:2
+    4188:	0d 43       	clr	r13		;
+
+0000418a <.LBB0_1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:6
+    418a:	3d 90 78 00 	cmp	#120,	r13	;#0x0078
+    418e:	0a 2c       	jc	$+22     	;abs 0x41a4
+    4190:	0e 4d       	mov	r13,	r14	;
+    4192:	0e 5e       	rla	r14		;
+    4194:	10 4e 00 40 	br	16384(r14)		;
+
+00004198 <.LBB0_3>:
+    4198:	1c 53       	inc	r12		;
+
+0000419a <.LBB0_4>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:5
+    419a:	1d 53       	inc	r13		;
+
+0000419c <.Loc.5.1>:
+    419c:	3d 90 78 00 	cmp	#120,	r13	;#0x0078
+    41a0:	f4 23       	jnz	$-22     	;abs 0x418a
+    41a2:	02 3c       	jmp	$+6      	;abs 0x41a8
+
+000041a4 <.LBB0_5>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:127
+    41a4:	3c 53       	add	#-1,	r12	;r3 As==11
+    41a6:	f9 3f       	jmp	$-12     	;abs 0x419a
+
+000041a8 <.LBB0_6>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:130
+    41a8:	30 41       	ret			
+
+000041aa <swi50>:
+swi50():
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:135
+    41aa:	0d 43       	clr	r13		;
+
+000041ac <.LBB1_1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:139
+    41ac:	3d 90 3c 00 	cmp	#60,	r13	;#0x003c
+    41b0:	0a 2c       	jc	$+22     	;abs 0x41c6
+    41b2:	0e 4d       	mov	r13,	r14	;
+    41b4:	0e 5e       	rla	r14		;
+    41b6:	10 4e f0 40 	br	16624(r14)		;
+
+000041ba <.LBB1_3>:
+    41ba:	1c 53       	inc	r12		;
+
+000041bc <.LBB1_4>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:138
+    41bc:	1d 53       	inc	r13		;
+
+000041be <.Loc.138.1>:
+    41be:	3d 90 32 00 	cmp	#50,	r13	;#0x0032
+    41c2:	f4 23       	jnz	$-22     	;abs 0x41ac
+    41c4:	02 3c       	jmp	$+6      	;abs 0x41ca
+
+000041c6 <.LBB1_5>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:200
+    41c6:	3c 53       	add	#-1,	r12	;r3 As==11
+    41c8:	f9 3f       	jmp	$-12     	;abs 0x41bc
+
+000041ca <.LBB1_6>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:203
+    41ca:	30 41       	ret			
+
+000041cc <swi10>:
+swi10():
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:208
+    41cc:	0d 43       	clr	r13		;
+
+000041ce <.LBB2_1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:212
+    41ce:	3d 90 0a 00 	cmp	#10,	r13	;#0x000a
+    41d2:	0a 2c       	jc	$+22     	;abs 0x41e8
+    41d4:	0e 4d       	mov	r13,	r14	;
+    41d6:	0e 5e       	rla	r14		;
+    41d8:	10 4e 68 41 	br	16744(r14)		;
+
+000041dc <.LBB2_3>:
+    41dc:	1c 53       	inc	r12		;
+
+000041de <.LBB2_4>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:211
+    41de:	1d 53       	inc	r13		;
+
+000041e0 <.Loc.211.1>:
+    41e0:	3d 90 0a 00 	cmp	#10,	r13	;#0x000a
+    41e4:	f4 23       	jnz	$-22     	;abs 0x41ce
+    41e6:	02 3c       	jmp	$+6      	;abs 0x41ec
+
+000041e8 <.LBB2_5>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:223
+    41e8:	3c 53       	add	#-1,	r12	;r3 As==11
+    41ea:	f9 3f       	jmp	$-12     	;abs 0x41de
+
+000041ec <.LBB2_6>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:226
+    41ec:	30 41       	ret			
+
+000041ee <main>:
+main():
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:230
+    41ee:	21 83       	decd	r1		;
+
+000041f0 <.Loc.231.1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:231
+    41f0:	81 43 00 00 	mov	#0,	0(r1)	;r3 As==00
+
+000041f4 <.Loc.233.1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:233
+    41f4:	2c 41       	mov	@r1,	r12	;
+
+000041f6 <.Loc.233.1>:
+    41f6:	b0 12 cc 41 	call	#16844		;#0x41cc
+
+000041fa <.Loc.233.1>:
+    41fa:	81 4c 00 00 	mov	r12,	0(r1)	;
+
+000041fe <.Loc.234.1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:234
+    41fe:	2c 41       	mov	@r1,	r12	;
+
+00004200 <.Loc.234.1>:
+    4200:	b0 12 aa 41 	call	#16810		;#0x41aa
+
+00004204 <.Loc.234.1>:
+    4204:	81 4c 00 00 	mov	r12,	0(r1)	;
+
+00004208 <.Loc.235.1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:235
+    4208:	2c 41       	mov	@r1,	r12	;
+
+0000420a <.Loc.235.1>:
+    420a:	b0 12 88 41 	call	#16776		;#0x4188
+
+0000420e <.Loc.235.1>:
+    420e:	81 4c 00 00 	mov	r12,	0(r1)	;
+
+00004212 <.Loc.239.1>:
+/Users/nilsholscher/workspaces/msp430_template/src/main.c:239
+    4212:	2c 41       	mov	@r1,	r12	;
+
+00004214 <.Loc.239.1>:
+    4214:	21 53       	incd	r1		;
+    4216:	30 41       	ret			
+
+Disassembly of section .MSP430.attributes:
+
+00000000 <.MSP430.attributes>:
+   0:	41 16       	popm.a	#5,	r5	;20-bit words
+   2:	00 00       	beq			
+   4:	00 6d       	addc	r13,	r0	;
+   6:	
+Disassembly of section .comment:
+
+00000000 <.comment>:
+   0:	
+Disassembly of section .debug_info:
+
+00000000 <.debug_info>:
+   0:	e3 00       	adda	r0,	r3	;
+   2:	00 00       	beq			
+   4:	04 00       	mova	@r0,	r4	;
+   6:	00 00       	beq			
+   8:	00 00       	beq			
+   a:	04 01       	mova	@r1,	r4	;
+   c:	00 00       	beq			
+   e:	00 00       	beq			
+  10:	0c 00       	mova	@r0,	r12	;
+  12:	6b 00 00 00 	mova	r0,	&720896	; 0xb0000
+  16:	00 00       	beq			
+  18:	00 00       	beq			
+  1a:	76 00 00 00 	mova	r0,	0(r6)	;
+  1e:	88 41 00 00 	mov	r1,	0(r8)	;
+  22:	90 00 00 00 	cmpa	#0,	r0	;
+  26:	02 88       	sub	r8,	r2	;
+  28:	41 00       	rrcm.a	#1,	r1	;
+  2a:	00 22       	.word	0x2200;	????
+  2c:	00 00       	beq			
+  2e:	00 01       	bra	@r1		;
+  30:	51 a5 00 00 	dadd.b	0(r5),	r1	;
+  34:	00 01       	bra	@r1		;
+  36:	01 da       	bis	r10,	r1	;
+  38:	00 00       	beq			
+  3a:	00 03       	bra	@r3		;
+  3c:	01 5c       	add	r12,	r1	;
+  3e:	74 00 00 00 	mova	r0,	0(r4)	;
+  42:	01 01       	mova	@r1,	r1	;
+  44:	da 00       	cmpa	r0,	r10	;
+  46:	00 00       	beq			
+  48:	04 01       	mova	@r1,	r4	;
+  4a:	5d c1 00 00 	bic.b	0(r1),	r13	;
+  4e:	00 01       	bra	@r1		;
+  50:	
+Disassembly of section .debug_abbrev:
+
+00000000 <.debug_abbrev>:
+   0:	01 11       	rra	r1		;
+   2:	01 25       	jz	$+516    	;abs 0x206
+   4:	0e 13       	reti			;return from interupt
+   6:	05 03       	mova	@r3,	r5	;
+   8:	0e 10       	rrc	r14		;
+   a:	17 1b 0e 11 	rpt #8 { rrax.?	r14		; Warning: reserved use of A/L and B/W bits detected
+   e:	01 12       	push	r1		;
+  10:	06 00       	mova	@r0,	r6	;
+  12:	00 02       	bra	@r2		;
+  14:	2e 01 11 01 	mova	&65809,	r14	;0x10111
+  18:	12 06       	mova	@r6+,	r2	;
+  1a:	40 18 03 0e 	movax	@r14,	r3	;
+  1e:	3a 0b 3b 0b 	mova	2875(r11),r10	;0x00b3b
+  22:	27 19 49 13 	rpt #8 { callax	r9		;
+  26:	3f 19 00 00 	rpt #16 { beqx			
+  2a:	03 05       	mova	@r5,	r3	;
+  2c:	00 02       	bra	@r2		;
+  2e:	18 03       	mova	@r3+,	r8	;
+  30:	0e 3a       	jl	$-994    	;abs 0xfffffffffffffc4e
+  32:	0b 3b       	jl	$-488    	;abs 0xfffffffffffffe4a
+  34:	0b 49       	mov	r9,	r11	;
+  36:	13 00       	mova	@r0+,	r3	;
+  38:	00 04       	bra	@r4		;
+  3a:	34 00 02 18 	mova	6146(r0),r4	;PC rel. 0x0183e
+  3e:	03 0e       	mova	@r14,	r3	;
+  40:	3a 0b 3b 0b 	mova	2875(r11),r10	;0x00b3b
+  44:	49 13       	calla	r9		;
+  46:	00 00       	beq			
+  48:	05 2e       	jc	$-1012   	;abs 0xfffffffffffffc54
+  4a:	01 11       	rra	r1		;
+  4c:	01 12       	push	r1		;
+  4e:	06 40       	mov	r0,	r6	;
+  50:	18 03       	mova	@r3+,	r8	;
+  52:	0e 3a       	jl	$-994    	;abs 0xfffffffffffffc70
+  54:	0b 3b       	jl	$-488    	;abs 0xfffffffffffffe6c
+  56:	0b 49       	mov	r9,	r11	;
+  58:	13 3f       	jmp	$-472    	;abs 0xfffffffffffffe80
+  5a:	19 00       	mova	@r0+,	r9	;
+  5c:	00 06       	bra	@r6		;
+  5e:	24 00 03 0e 	mova	&3587,	r4	;0x00e03
+  62:	3e 0b 0b 0b 	mova	2827(r11),r14	;0x00b0b
+  66:	00 00       	beq			
+  68:	07 35       	jge	$+528    	;abs 0x278
+  6a:	00 49       	br	r9		;
+  6c:	13 00       	mova	@r0+,	r3	;
+	...
+
+Disassembly of section .debug_line:
+
+00000000 <L0^A>:
+L0^A():
+   0:	38 01 00 00 	mova	0(r1),	r8	;
+   4:	03 00       	mova	@r0,	r3	;
+   6:	21 00 00 00 	mova	&0,	r1	;
+
+0000000a <L0^A>:
+   a:	01 01       	mova	@r1,	r1	;
+   c:	fb 0e       	suba	r14,	r11	;
+   e:	0d 00       	mova	@r0,	r13	;
+  10:	01 01       	mova	@r1,	r1	;
+  12:	01 01       	mova	@r1,	r1	;
+  14:	00 00       	beq			
+  16:	00 01       	bra	@r1		;
+  18:	00 00       	beq			
+  1a:	01 73       	sbc	r1		;
+  1c:	72 63       	addc.b	#-1,	r2	;r3 As==11
+  1e:	00 00       	beq			
+  20:	6d 61       	addc.b	@r1,	r13	;
+  22:	69 6e       	addc.b	@r14,	r9	;
+  24:	2e 63       	addc	#2,	r14	;r3 As==10
+  26:	00 01       	bra	@r1		;
+  28:	00 00       	beq			
+  2a:	00 00       	beq			
+  2c:	05 02       	mova	@r2,	r5	;
+  2e:	88 41 00 00 	mov	r1,	0(r8)	;
+  32:	13 05       	mova	@r5+,	r3	;
+  34:	03 0a       	mova	@r10,	r3	;
+  36:	03 04       	mova	@r4,	r3	;
+  38:	09 02       	mova	@r2,	r9	;
+  3a:	00 01       	bra	@r1		;
+  3c:	05 14       	pushm.a	#1,	r5	;20-bit words
+  3e:	
+Disassembly of section .debug_str:
+
+00000000 <.debug_str>:
+   0:	

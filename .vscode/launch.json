@@ -1,0 +1,39 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "blink MSP430",
+      "program": "${workspaceFolder}/build/bin/llta",
+      "args": ["${workspaceFolder}/tests/msp430/blink/msp.ll",
+      "-dump-file=${workspaceFolder}/tests/msp430/blink/msp.elf.dump",
+      "-start-function=main"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    }, {
+      "type": "lldb",
+      "request": "launch",
+      "name": "cnt MSP430",
+      "program": "${workspaceFolder}/build/bin/llta",
+      "args": ["${workspaceFolder}/tests/msp430/cnt/msp.ll",
+      "-dump-file=${workspaceFolder}/tests/msp430/cnt/msp.elf.dump",
+      "-start-function=main"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    }, {
+      "type": "lldb",
+      "request": "launch",
+      "name": "cover MSP430",
+      "program": "${workspaceFolder}/build/bin/llta",
+      "args": ["${workspaceFolder}/tests/msp430/cover/msp.ll",
+      "-dump-file=${workspaceFolder}/tests/msp430/cover/msp.elf.dump",
+      "-start-function=main"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "loop_bounds": [
+    {
+      "column": 4,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cnt/cnt.c",
+      "line": 130,
+      "lower_bound": 0,
+      "upper_bound": 10
+    },
+    {
+      "column": 7,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cnt/cnt.c",
+      "line": 132,
+      "lower_bound": 0,
+      "upper_bound": 10
+    },
+    {
+      "column": 3,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cnt/cnt.c",
+      "line": 179,
+      "lower_bound": 0,
+      "upper_bound": 10
+    },
+    {
+      "column": 5,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cnt/cnt.c",
+      "line": 181,
+      "lower_bound": 0,
+      "upper_bound": 10
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "./config.sh build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "build all",
+      "type": "shell",
+      "command": "./config.sh build-all",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "config",
+      "type": "shell",
+      "command": "./config.sh config"
+    },
+    {
+      "label": "clean",
+      "type": "shell",
+      "command": "./config.sh clean"
+    },
+    {
+      "label": "mrproper",
+      "type": "shell",
+      "command": "./config.sh mrproper"
+    },
+    {
+      "label": "download",
+      "type": "shell",
+      "command": "./config.sh download"
+    },
+    {
+      "label": "patch",
+      "type": "shell",
+      "command": "./config.sh patch"
+    }
+  ]
+}

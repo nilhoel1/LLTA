@@ -1,0 +1,26 @@
+diff -ruN llvm-project-20.1.8.src/llvm/lib/CodeGen/CodeGenTargetMachineImpl.cpp llvm-project-20.1.8.src.patch/llvm/lib/CodeGen/CodeGenTargetMachineImpl.cpp
+--- llvm-project-20.1.8.src/llvm/lib/CodeGen/CodeGenTargetMachineImpl.cpp	2025-07-09 01:06:32
++++ llvm-project-20.1.8.src.patch/llvm/lib/CodeGen/CodeGenTargetMachineImpl.cpp	2025-11-28 10:07:58
+@@ -228,8 +228,9 @@
+     if (FileType != CodeGenFileType::Null)
+       PM.add(createPrintMIRPass(Out));
+   }
+-
+-  PM.add(createFreeMachineFunctionPass());
++  // Modified for LLTA
++  // PM.add(createFreeMachineFunctionPass());
++  // Modified for LLTA
+   return false;
+ }
+ 
+@@ -281,7 +282,9 @@
+     return true;
+ 
+   PM.add(Printer);
+-  PM.add(createFreeMachineFunctionPass());
++  // Modified for LLTA
++  // PM.add(createFreeMachineFunctionPass());
++  // Modified for LLTA
+ 
+   return false; // success!
+ }

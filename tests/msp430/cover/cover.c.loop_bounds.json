@@ -1,0 +1,25 @@
+{
+  "loop_bounds": [
+    {
+      "column": 2,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cover/cover.c",
+      "line": 5,
+      "lower_bound": 0,
+      "upper_bound": 120
+    },
+    {
+      "column": 2,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cover/cover.c",
+      "line": 138,
+      "lower_bound": 0,
+      "upper_bound": 50
+    },
+    {
+      "column": 2,
+      "file": "/Users/nilsholscher/workspaces/llvm-project/IR2MIR/tests/msp430/cover/cover.c",
+      "line": 211,
+      "lower_bound": 0,
+      "upper_bound": 10
+    }
+  ]
+}
