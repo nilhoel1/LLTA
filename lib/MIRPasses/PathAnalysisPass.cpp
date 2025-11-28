@@ -17,9 +17,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
-#include <gurobi_c++.h>
 #include <memory>
 #include <vector>
+#ifdef ENABLE_GUROBI
+#include <gurobi_c.h>
+#endif
 
 namespace llvm {
 

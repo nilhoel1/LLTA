@@ -39,9 +39,25 @@ set(LLVM_LINK_COMPONENTS
 message (STATUS "${PROJECT_BINARY_DIR}$")
 message (STATUS "${PROJECT_SOURCE_DIR}$")
 
-find_package(GUROBI REQUIRED)
+# Make Gurobi optional
+option(LLTA_ENABLE_GUROBI "Enable Gurobi optimizer support" ON)
 
-message (${GUROBI_INCLUDE_DIRS})
+if(LLTA_ENABLE_GUROBI)
+  find_package(GUROBI)
+  if(GUROBI_FOUND)
+    message(STATUS "Gurobi found - building with optimizer support")
+    add_definitions(-DENABLE_GUROBI)
+    set(GUROBI_LIBS ${GUROBI_CXX_LIBRARY})
+  else()
+    message(WARNING "Gurobi not found - building without optimizer support")
+    set(GUROBI_INCLUDE_DIRS "")
+    set(GUROBI_LIBS "")
+  endif()
+else()
+  message(STATUS "Gurobi support disabled")
+  set(GUROBI_INCLUDE_DIRS "")
+  set(GUROBI_LIBS "")
+endif()
 
 include_directories(include ${LLVM_BINARY_DIR}/lib/Target/ARM ${LLVM_SOURCE_DIR}/lib/Target/ARM ${LLVM_BINARY_DIR}/lib/Target/RISCV ${LLVM_SOURCE_DIR}/lib/Target/RISCV ${LLVM_BINARY_DIR}/lib/Target/MSP430 ${LLVM_SOURCE_DIR}/lib/Target/MSP430 ${GUROBI_INCLUDE_DIRS})
 
@@ -56,6 +72,6 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_CXX_LIBRARY})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_LIBS})
 
 export_executable_symbols_for_plugins(llta)
