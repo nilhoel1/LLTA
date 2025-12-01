@@ -11,7 +11,8 @@
       "program": "${workspaceFolder}/build/bin/llta",
       "args": ["${workspaceFolder}/tests/msp430/blink/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/blink/msp.elf.dump",
-      "-start-function=main"],
+      "-start-function=main",
+      "--ilp-solver=highs"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }, {
@@ -21,7 +22,8 @@
       "program": "${workspaceFolder}/build/bin/llta",
       "args": ["${workspaceFolder}/tests/msp430/cnt/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/cnt/msp.elf.dump",
-      "-start-function=main"],
+      "-start-function=main",
+      "--ilp-solver=highs"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }, {
@@ -31,7 +33,8 @@
       "program": "${workspaceFolder}/build/bin/llta",
       "args": ["${workspaceFolder}/tests/msp430/cover/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/cover/msp.elf.dump",
-      "-start-function=main"],
+      "-start-function=main",
+      "--ilp-solver=highs"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }

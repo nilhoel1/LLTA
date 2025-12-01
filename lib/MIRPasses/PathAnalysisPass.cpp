@@ -223,23 +223,7 @@ bool PathAnalysisPass::runOnMachineFunction(MachineFunction &F) {
       outs() << "MBB: " << MBB->getName() << " Bound: " << Bound << "\n";
   }
 
-  // Check if this is the last function to finalize and solve ILP
-  bool IsLast = false;
-  const Function *LastF = nullptr;
-  for (auto &Func : MMI->getModule()->getFunctionList()) {
-    if (!Func.isDeclaration()) {
-      LastF = &Func;
-    }
-  }
-
-  if (LastF == &F.getFunction()) {
-    IsLast = true;
-  }
-
-  // Solve the WCET ILP on the finalized MuArchStateGraph
-  if (IsLast) {
-    finalizePathAnalysis(TAR.MASG);
-  }
+  finalizePathAnalysis(TAR.MASG);
 
   return false;
 }
