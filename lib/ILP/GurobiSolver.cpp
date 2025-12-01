@@ -137,32 +137,33 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     }
   }
 
-  // Constraint 3: Flow conservation for all nodes (except entry and exit)
+  // Constraint 3: Flow conservation for all nodes
+  // For non-entry nodes: x_i <= sum(x_pred) - we can only execute i if we came from somewhere
+  // For non-exit nodes: x_i <= sum(x_succ) - after executing i, we must go somewhere
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
 
-    // Skip entry and exit nodes
-    if (NodeId == EntryNodeId || NodeId == ExitNodeId) {
-      continue;
-    }
-
-    // In-flow constraint: sum(predecessors) = x_i
     const auto &Preds = N.getPredecessors();
-    if (!Preds.empty()) {
+    const auto &Succs = N.getSuccessors();
+
+    // For non-entry nodes: x_i <= sum(x_pred)
+    // Rearranged: x_i - sum(x_pred) <= 0
+    if (NodeId != EntryNodeId && !Preds.empty()) {
       std::vector<int> Indices;
       std::vector<double> Coeffs;
 
+      Indices.push_back(NodeToVarIdx[NodeId]);
+      Coeffs.push_back(1.0);
+
       for (unsigned PredId : Preds) {
         Indices.push_back(NodeToVarIdx[PredId]);
-        Coeffs.push_back(1.0);
+        Coeffs.push_back(-1.0);
       }
-      Indices.push_back(NodeToVarIdx[NodeId]);
-      Coeffs.push_back(-1.0);
 
       std::string ConstrName = "flow_in_" + std::to_string(NodeId);
       error = GRBaddconstr(model, Indices.size(), Indices.data(), Coeffs.data(),
-                           GRB_EQUAL, 0.0, ConstrName.c_str());
+                           GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
       if (error) {
         Result.StatusMessage =
             "Failed to add flow in constraint for node " + std::to_string(NodeId);
@@ -172,9 +173,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
     }
 
-    // Out-flow constraint: x_i = sum(successors)
-    const auto &Succs = N.getSuccessors();
-    if (!Succs.empty()) {
+    // For non-exit nodes: x_i <= sum(x_succ)
+    // Rearranged: x_i - sum(x_succ) <= 0
+    if (NodeId != ExitNodeId && !Succs.empty()) {
       std::vector<int> Indices;
       std::vector<double> Coeffs;
 
@@ -188,7 +189,7 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
       std::string ConstrName = "flow_out_" + std::to_string(NodeId);
       error = GRBaddconstr(model, Indices.size(), Indices.data(), Coeffs.data(),
-                           GRB_EQUAL, 0.0, ConstrName.c_str());
+                           GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
       if (error) {
         Result.StatusMessage =
             "Failed to add flow out constraint for node " + std::to_string(NodeId);

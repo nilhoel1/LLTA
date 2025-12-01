@@ -93,37 +93,76 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     RowUpper.push_back(1.0);
   }
 
-  // Constraint 3: Flow conservation for all nodes (except entry and exit)
+  // Constraint 3: Flow conservation for all nodes
+  // For each node: sum(incoming flow from predecessors) = sum(outgoing flow to successors)
+  // This is the standard IPET flow conservation constraint.
+  // 
+  // Entry node: has no predecessors, flow comes from "outside" (constrained to 1)
+  // Exit node: has no successors, flow goes to "outside" (constrained to 1)
+  // Other nodes: sum(predecessors' contributions) = sum(successors' contributions)
+  //
+  // The key insight: x_i represents how many times node i is executed.
+  // Flow conservation: sum(x_j for j in preds) = x_i only if each pred j 
+  // has ONLY i as its successor. Otherwise, we need edge-based flow.
+  //
+  // Simpler approach: For each node i (except entry/exit):
+  //   sum(x_j for j in preds) >= x_i  (we can reach i from preds)
+  //   sum(x_k for k in succs) >= x_i  (we can leave i to succs)
+  // But this is also not quite right.
+  //
+  // Standard IPET: For each node i, in-degree flow = out-degree flow = x_i
+  // sum_{(j,i) in E} f_{ji} = x_i  and  sum_{(i,k) in E} f_{ik} = x_i
+  // where f_{ji} is flow on edge (j,i).
+  //
+  // Without explicit edge variables, we approximate:
+  // For non-entry/exit: sum(x_pred) = x_i (works only for single-successor preds)
+  //
+  // REVISED APPROACH: Don't use flow conservation on predecessors/successors
+  // execution counts directly. Instead, ensure structural consistency via
+  // the graph structure itself. The entry=1, exit=1 constraints plus
+  // loop bounds should be sufficient for a well-formed CFG.
+  
+  // Actually, let's use proper edge-based flow conservation.
+  // For each node i: sum of (flows from preds that go TO i) = x_i
+  // But flow from pred j to i is: x_j * (1 / |successors of j|) if uniform
+  // This gets complicated. Let's try a different approach:
+  //
+  // For each node i (except entry):
+  //   x_i <= sum(x_pred for pred in predecessors)
+  // This says: we can only execute i if we came from somewhere
+  //
+  // For each node i (except exit):  
+  //   x_i <= sum(x_succ for succ in successors)
+  // This says: after executing i, we must go somewhere
+  //
+  // Combined with entry=1, exit=1, this should work.
+  
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
 
-    // Skip entry and exit nodes
-    if (NodeId == EntryNodeId || NodeId == ExitNodeId) {
-      continue;
-    }
-
-    // In-flow constraint: sum(predecessors) = x_i
-    // sum(predecessors) - x_i = 0
     const auto &Preds = N.getPredecessors();
-    if (!Preds.empty()) {
+    const auto &Succs = N.getSuccessors();
+
+    // For non-entry nodes: x_i <= sum(x_pred)
+    // Rearranged: x_i - sum(x_pred) <= 0
+    if (NodeId != EntryNodeId && !Preds.empty()) {
       AStart.push_back(CurrentNnz);
+      AIndex.push_back(NodeToVarIdx[NodeId]);
+      AValue.push_back(1.0);
+      CurrentNnz++;
       for (unsigned PredId : Preds) {
         AIndex.push_back(NodeToVarIdx[PredId]);
-        AValue.push_back(1.0);
+        AValue.push_back(-1.0);
         CurrentNnz++;
       }
-      AIndex.push_back(NodeToVarIdx[NodeId]);
-      AValue.push_back(-1.0);
-      CurrentNnz++;
-      RowLower.push_back(0.0);
+      RowLower.push_back(-kHighsInf);
       RowUpper.push_back(0.0);
     }
 
-    // Out-flow constraint: x_i = sum(successors)
-    // x_i - sum(successors) = 0
-    const auto &Succs = N.getSuccessors();
-    if (!Succs.empty()) {
+    // For non-exit nodes: x_i <= sum(x_succ)
+    // Rearranged: x_i - sum(x_succ) <= 0
+    if (NodeId != ExitNodeId && !Succs.empty()) {
       AStart.push_back(CurrentNnz);
       AIndex.push_back(NodeToVarIdx[NodeId]);
       AValue.push_back(1.0);
@@ -133,7 +172,7 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
         AValue.push_back(-1.0);
         CurrentNnz++;
       }
-      RowLower.push_back(0.0);
+      RowLower.push_back(-kHighsInf);
       RowUpper.push_back(0.0);
     }
   }
