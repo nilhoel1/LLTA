@@ -1,6 +1,7 @@
 #include "ILP/HighsSolver.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 
 #ifdef ENABLE_HIGHS
 #include <Highs.h>
@@ -254,6 +255,59 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   if (status != HighsStatus::kOk) {
     Result.StatusMessage = "Failed to pass model to HiGHS";
     return Result;
+  }
+
+  // Write model to file for debugging
+  highs.writeModel("highs_wcet_model.mps");
+  
+  // Also write a human-readable LP format
+  std::error_code EC;
+  llvm::raw_fd_ostream LPFile("highs_wcet_model.lp", EC);
+  if (!EC) {
+    LPFile << "\\* WCET ILP Model (HiGHS) *\\\n";
+    LPFile << "Maximize\n obj: ";
+    for (int i = 0; i < NumNodes; i++) {
+      if (Model.lp_.col_cost_[i] != 0) {
+        if (i > 0 && Model.lp_.col_cost_[i] > 0) LPFile << " + ";
+        LPFile << Model.lp_.col_cost_[i] << " x" << VarIdxToNode[i];
+      }
+    }
+    LPFile << "\n\nSubject To\n";
+    
+    // Print constraints
+    for (size_t row = 0; row < RowLower.size(); row++) {
+      LPFile << " c" << row << ": ";
+      int start = AStart[row];
+      int end = AStart[row + 1];
+      for (int nz = start; nz < end; nz++) {
+        if (nz > start && AValue[nz] > 0) LPFile << " + ";
+        LPFile << AValue[nz] << " x" << VarIdxToNode[AIndex[nz]];
+      }
+      if (RowLower[row] == RowUpper[row]) {
+        LPFile << " = " << RowLower[row];
+      } else {
+        if (RowLower[row] > -kHighsInf) {
+          LPFile << " >= " << RowLower[row];
+        }
+        if (RowUpper[row] < kHighsInf) {
+          if (RowLower[row] > -kHighsInf) LPFile << ",";
+          LPFile << " <= " << RowUpper[row];
+        }
+      }
+      LPFile << "\n";
+    }
+    
+    LPFile << "\nBounds\n";
+    for (int i = 0; i < NumNodes; i++) {
+      LPFile << " 0 <= x" << VarIdxToNode[i] << " <= +inf\n";
+    }
+    
+    LPFile << "\nInteger\n";
+    for (int i = 0; i < NumNodes; i++) {
+      LPFile << " x" << VarIdxToNode[i] << "\n";
+    }
+    LPFile << "End\n";
+    LPFile.close();
   }
 
   // Solve

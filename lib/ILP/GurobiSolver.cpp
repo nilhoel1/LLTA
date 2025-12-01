@@ -271,6 +271,18 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     }
   }
 
+  // Write model to file for debugging
+  error = GRBwrite(model, "gurobi_wcet_model.lp");
+  if (error) {
+    outs() << "Warning: Failed to write Gurobi model to file\n";
+  }
+  
+  // Also write in MPS format
+  error = GRBwrite(model, "gurobi_wcet_model.mps");
+  if (error) {
+    outs() << "Warning: Failed to write Gurobi MPS model to file\n";
+  }
+
   // Optimize model
   error = GRBoptimize(model);
   if (error) {
