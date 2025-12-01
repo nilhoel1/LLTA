@@ -44,7 +44,7 @@ public:
   /// @param MASG The microarchitectural state graph to analyze
   /// @return true if WCET was successfully computed
   bool finalizePathAnalysis(MuArchStateGraph &MASG);
-
+  bool doFinalization(Module &) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<MachineLoopInfoWrapperPass>();

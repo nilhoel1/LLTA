@@ -45,7 +45,8 @@ Function *PathAnalysisPass::getStartingFunction(CallGraph &CG) {
     auto *F = CGNode.second->getFunction();
     if (F == nullptr)
       continue;
-    if (!StartFunctionName.empty() && F->getName().compare(StartFunctionName) == 0) {
+    if (!StartFunctionName.empty() &&
+        F->getName().compare(StartFunctionName) == 0) {
       return F;
     }
     auto NumRef = CGNode.second->getNumReferences();
@@ -74,7 +75,7 @@ Function *PathAnalysisPass::getStartingFunction(CallGraph &CG) {
  * @param MASG The microarchitectural state graph
  * @return true if WCET was successfully computed
  */
-bool PathAnalysisPass::finalizePathAnalysis(MuArchStateGraph &MASG) {
+bool PathAnalysisPass::doFinalization(Module &M) {
   outs() << "\n=== Path Analysis: Computing WCET via ILP ===\n";
 
   // Parse solver type from command-line option
@@ -95,7 +96,7 @@ bool PathAnalysisPass::finalizePathAnalysis(MuArchStateGraph &MASG) {
   unsigned EntryNodeId = UINT_MAX;
   unsigned ExitNodeId = UINT_MAX;
 
-  const auto &Nodes = MASG.getNodes();
+  const auto &Nodes = TAR.MASG.getNodes();
 
   for (const auto &NodePair : Nodes) {
     const Node &N = NodePair.second;
@@ -128,7 +129,8 @@ bool PathAnalysisPass::finalizePathAnalysis(MuArchStateGraph &MASG) {
   }
 
   if (EntryNodeId == UINT_MAX || ExitNodeId == UINT_MAX) {
-    outs() << "Error: Could not identify entry and/or exit nodes in the graph.\n";
+    outs()
+        << "Error: Could not identify entry and/or exit nodes in the graph.\n";
     return false;
   }
 
@@ -149,33 +151,33 @@ bool PathAnalysisPass::finalizePathAnalysis(MuArchStateGraph &MASG) {
 
   // Solve the ILP
   outs() << "\nSolving WCET ILP...\n";
-  ILPResult Result = Solver->solveWCET(MASG, EntryNodeId, ExitNodeId, LoopBoundMap);
+  ILPResult Result =
+      Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, LoopBoundMap);
 
   // Report results
   outs() << "\n=== WCET Analysis Results ===\n";
   outs() << "Status: " << Result.StatusMessage << "\n";
 
   if (Result.Success) {
-    outs() << "WCET (worst-case execution time): " << static_cast<unsigned>(Result.ObjectiveValue)
-           << " cycles\n";
+    outs() << "WCET (worst-case execution time): "
+           << static_cast<unsigned>(Result.ObjectiveValue) << " cycles\n";
 
     if (DebugPrints) {
       outs() << "\nNode execution counts:\n";
       for (const auto &[NodeId, Count] : Result.NodeExecutionCounts) {
         if (Count > 0) {
           const Node &N = Nodes.at(NodeId);
-          outs() << "  Node " << NodeId << " (" << N.Name << "): "
-                 << static_cast<unsigned>(Count) << " times, "
+          outs() << "  Node " << NodeId << " (" << N.Name
+                 << "): " << static_cast<unsigned>(Count) << " times, "
                  << N.getState().getUpperBoundCycles() << " cycles/exec\n";
         }
       }
     }
 
     return true;
-  } else {
-    outs() << "Failed to compute WCET.\n";
-    return false;
   }
+  outs() << "Failed to compute WCET.\n";
+  return false;
 }
 
 /**
@@ -205,11 +207,9 @@ bool PathAnalysisPass::runOnMachineFunction(MachineFunction &F) {
   if (StartFunctionName != F.getName() && StartFunctionName != "") {
     return false;
   }
-  outs() << "Starting Function: " << F.getName() << "\n";
-  outs() << "Should Be: " << StartFunctionName << "\n";
+  // outs() << "Starting Function: " << F.getName() << "\n";
+  // outs() << "Should Be: " << StartFunctionName << "\n";
 
-  // Get MachineModuleInfo
-  auto *MMI = &getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   // Get the MachineLoopInfo analysis results
   auto &MLWP = getAnalysis<MachineLoopInfoWrapperPass>();
   (void)MLWP; // Suppress unused variable warning
@@ -218,12 +218,10 @@ bool PathAnalysisPass::runOnMachineFunction(MachineFunction &F) {
   auto MBBLatencyMap = TAR.getMBBLatencyMap();
 
   // Print Loop Bounds
-  outs() << "Aggregated Loop Bounds:\n";
-  for (auto const& [MBB, Bound] : TAR.LoopBoundMap) {
-      outs() << "MBB: " << MBB->getName() << " Bound: " << Bound << "\n";
-  }
-
-  finalizePathAnalysis(TAR.MASG);
+  // outs() << "Aggregated Loop Bounds:\n";
+  // for (auto const &[MBB, Bound] : TAR.LoopBoundMap) {
+  //   outs() << "MBB: " << MBB->getName() << " Bound: " << Bound << "\n";
+  // }
 
   return false;
 }
