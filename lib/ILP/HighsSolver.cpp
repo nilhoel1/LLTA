@@ -179,6 +179,7 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Constraint 4: Loop bound constraints
+  // Loop headers are marked with IsLoop=true and have UpperLoopBound set
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -187,12 +188,7 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       continue;
     }
 
-    auto LoopIt = LoopBoundMap.find(NodeId);
-    if (LoopIt == LoopBoundMap.end()) {
-      continue;
-    }
-
-    unsigned LoopBound = LoopIt->second;
+    unsigned LoopBound = N.UpperLoopBound;
 
     // Identify back edges vs entry edges
     std::vector<unsigned> PreheaderPreds;

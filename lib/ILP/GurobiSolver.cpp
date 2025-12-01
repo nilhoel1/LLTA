@@ -201,6 +201,7 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Constraint 4: Loop bound constraints
+  // Loop headers are marked with IsLoop=true and have UpperLoopBound set
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -209,12 +210,7 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       continue;
     }
 
-    auto LoopIt = LoopBoundMap.find(NodeId);
-    if (LoopIt == LoopBoundMap.end()) {
-      continue;
-    }
-
-    unsigned LoopBound = LoopIt->second;
+    unsigned LoopBound = N.UpperLoopBound;
 
     // Back-edge detection heuristic based on node ID ordering.
     // Assumes nodes within a loop body have higher IDs than the loop header.

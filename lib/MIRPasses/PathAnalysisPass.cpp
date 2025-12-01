@@ -138,21 +138,24 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   outs() << "Exit node ID: " << ExitNodeId << "\n";
   outs() << "Total nodes: " << Nodes.size() << "\n";
 
-  // Build loop bound map from node IDs to bounds
-  std::map<unsigned, unsigned> LoopBoundMap;
+  // Print loop information (loop bounds are now read directly from Node.UpperLoopBound)
   for (const auto &NodePair : Nodes) {
     const Node &N = NodePair.second;
     if (N.IsLoop) {
-      LoopBoundMap[NodePair.first] = N.UpperLoopBound;
       outs() << "Loop node " << NodePair.first << " (" << N.Name
-             << ") has bound: " << N.UpperLoopBound << "\n";
+             << ") has bound: " << N.UpperLoopBound;
+      if (N.IsNestedLoop && N.NestedLoopHeader) {
+        outs() << " (nested in loop " << N.NestedLoopHeader->Id << ")";
+      }
+      outs() << "\n";
     }
   }
 
-  // Solve the ILP
+  // Solve the ILP (loop bounds are read from nodes directly, map not used)
   outs() << "\nSolving WCET ILP...\n";
+  std::map<unsigned, unsigned> EmptyLoopBoundMap; // Not used anymore
   ILPResult Result =
-      Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, LoopBoundMap);
+      Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
 
   // Report results
   outs() << "\n=== WCET Analysis Results ===\n";
