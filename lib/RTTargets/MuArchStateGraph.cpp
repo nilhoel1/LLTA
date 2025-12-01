@@ -419,7 +419,7 @@ bool MuArchStateGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
             outs() << "Warning: Callee " << Callee->getName() << " not found in FunctionToEntryNodeMap\n";
     }
   }
-  outs() << "Printing Dot file \n";
+  // outs() << "Printing Dot file \n";
   dump2Dot(StringRef("MuArchStateGraph.dot"));
   return false;
 }
