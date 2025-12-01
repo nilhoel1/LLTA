@@ -238,22 +238,16 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     // More precisely: count back-edges. For each predecessor that is NOT
     // a back-edge (i.e., comes from outside the loop), that's a preheader.
     // Back-edge detection: predecessor is a successor of the header (cyclic)
+    // Note: This uses a simple heuristic based on node ID ordering.
+    // Assumes nodes within a loop body have higher IDs than the loop header.
     
     std::vector<unsigned> PreheaderPreds;
     std::vector<unsigned> BackEdgePreds;
     
     for (unsigned PredId : N.getPredecessors()) {
-      // Check if this predecessor is reachable from header (back-edge)
-      // Simple heuristic: if predecessor has header as successor, it's a back-edge
-      const auto &PredSuccs = MASG.getSuccessors(PredId);
-      bool IsBackEdge = false;
-      // If the predecessor is a successor of the header in the graph topology,
-      // then this edge from pred to header is a back edge
-      // Actually, check if pred is in the "body" of the loop
-      // Simpler: if pred has a higher node ID, assume it's from within the loop
-      if (PredId > NodeId) {
-        IsBackEdge = true;
-      }
+      // Simple heuristic: if predecessor has a higher node ID than the header,
+      // assume it's from within the loop (back-edge)
+      bool IsBackEdge = (PredId > NodeId);
       
       if (IsBackEdge) {
         BackEdgePreds.push_back(PredId);
