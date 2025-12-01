@@ -1,6 +1,7 @@
 add_subdirectory(MIRPasses)
 add_subdirectory(Utility)
 add_subdirectory(RTTargets)
+add_subdirectory(ILP)
 
 add_llvm_library(TimingAnalysisBase
   TimingAnalysisResults.cpp

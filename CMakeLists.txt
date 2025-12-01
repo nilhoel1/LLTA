@@ -92,6 +92,6 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 export_executable_symbols_for_plugins(llta)

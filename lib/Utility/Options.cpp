@@ -23,3 +23,9 @@ cl::opt<std::string> LoopBoundsJSON(
     "loop-bounds-json", cl::init(""),
     cl::desc("Path to JSON file containing loop bounds from clang plugin"),
     cl::cat(LLTA));
+
+cl::opt<std::string> ILPSolverOption(
+    "ilp-solver", cl::init("auto"),
+    cl::desc("ILP solver to use for WCET calculation: 'auto' (default), 'gurobi', or 'highs'. "
+             "With 'auto', Gurobi is tried first if available and licensed, then HiGHS."),
+    cl::cat(LLTA));

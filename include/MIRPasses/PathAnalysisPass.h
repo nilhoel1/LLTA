@@ -15,10 +15,8 @@
 namespace llvm {
 
 /**
- * Pass that prints the resulting assembler for the given program if option
- * enable-asm-dump is true. In any case, it checks that the program with its
- * instructions adheres to our implicit assumptions and gives reasonable error
- * messages to the user.
+ * Pass that performs path analysis on the MuArchStateGraph to compute WCET.
+ * This pass solves an ILP to find the longest path from entry to exit node.
  */
 class PathAnalysisPass : public MachineFunctionPass {
 public:
@@ -41,6 +39,12 @@ public:
   bool runOnMachineFunction(MachineFunction &F) override;
   bool dumpMuGraphToDotFile(MuArchStateGraph &MASG, StringRef FileName);
   Function *getStartingFunction(CallGraph &CG);
+
+  /// Finalize the path analysis by solving the WCET ILP
+  /// @param MASG The microarchitectural state graph to analyze
+  /// @return true if WCET was successfully computed
+  bool finalizePathAnalysis(MuArchStateGraph &MASG);
+
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<MachineLoopInfoWrapperPass>();
@@ -53,7 +57,7 @@ public:
   };
 
   virtual llvm::StringRef getPassName() const override {
-    return "PathAnalysisPass for testing different analysis results";
+    return "PathAnalysisPass for WCET computation via ILP";
   }
 };
 
