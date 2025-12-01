@@ -10,8 +10,9 @@
 
 namespace llvm {
 
-GurobiSolver::GurobiSolver() : HasLicense(false) {
 #ifdef ENABLE_GUROBI
+
+GurobiSolver::GurobiSolver() : HasLicense(false) {
   // Try to create a Gurobi environment to check license
   GRBenv *env = nullptr;
   int error = GRBloadenv(&env, nullptr);
@@ -23,17 +24,12 @@ GurobiSolver::GurobiSolver() : HasLicense(false) {
     DEBUG_WITH_TYPE("ilp", dbgs() << "Gurobi license check failed with error "
                                   << error << "\n");
   }
-#endif
 }
 
 GurobiSolver::~GurobiSolver() = default;
 
 bool GurobiSolver::isAvailable() const {
-#ifdef ENABLE_GUROBI
   return HasLicense;
-#else
-  return false;
-#endif
 }
 
 ILPResult
@@ -42,7 +38,6 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
                         const std::map<unsigned, unsigned> &LoopBoundMap) {
   ILPResult Result;
 
-#ifdef ENABLE_GUROBI
   GRBenv *env = nullptr;
   GRBmodel *model = nullptr;
   int error = 0;
@@ -143,10 +138,6 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Constraint 3: Flow conservation for all nodes (except entry and exit)
-  // Sum of incoming flow = Sum of outgoing flow = execution count
-  // For each node i: sum(x_pred) = x_i and sum(x_succ) = x_i
-  // Or equivalently: sum(x_pred) - x_i = 0 and x_i - sum(x_succ) = 0
-  // Combined: sum(x_pred) = sum(x_succ)
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -209,8 +200,6 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Constraint 4: Loop bound constraints
-  // For loop headers: x_header <= N * sum(x_preheader)
-  // where preheader edges are edges from outside the loop
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -226,29 +215,13 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
     unsigned LoopBound = LoopIt->second;
 
-    // Identify back edges vs entry edges
-    // A simple heuristic: back edges come from successors with higher or equal
-    // node IDs (assuming loop body nodes are after header in the graph)
-    // For proper identification, we'd need loop analysis info
-    
-    // For now, use a simpler constraint: x_header <= LoopBound * entry_flow
-    // where entry_flow is 1 for the outermost context
-    // This means: x_header <= LoopBound (for single-entry loops)
-    
-    // More precisely: count back-edges. For each predecessor that is NOT
-    // a back-edge (i.e., comes from outside the loop), that's a preheader.
-    // Back-edge detection: predecessor is a successor of the header (cyclic)
-    // Note: This uses a simple heuristic based on node ID ordering.
+    // Back-edge detection heuristic based on node ID ordering.
     // Assumes nodes within a loop body have higher IDs than the loop header.
-    
     std::vector<unsigned> PreheaderPreds;
     std::vector<unsigned> BackEdgePreds;
     
     for (unsigned PredId : N.getPredecessors()) {
-      // Simple heuristic: if predecessor has a higher node ID than the header,
-      // assume it's from within the loop (back-edge)
       bool IsBackEdge = (PredId > NodeId);
-      
       if (IsBackEdge) {
         BackEdgePreds.push_back(PredId);
       } else {
@@ -257,7 +230,6 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     }
 
     // Constraint: x_header <= LoopBound * sum(preheader_flow)
-    // Rearranged: x_header - LoopBound * sum(x_preheader) <= 0
     if (!PreheaderPreds.empty()) {
       std::vector<int> Indices;
       std::vector<double> Coeffs;
@@ -336,11 +308,28 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   GRBfreemodel(model);
   GRBfreeenv(env);
 
-#else
-  Result.StatusMessage = "Gurobi support not compiled in";
-#endif
-
   return Result;
 }
+
+#else // !ENABLE_GUROBI
+
+GurobiSolver::GurobiSolver() : HasLicense(false) {}
+
+GurobiSolver::~GurobiSolver() = default;
+
+bool GurobiSolver::isAvailable() const {
+  return false;
+}
+
+ILPResult
+GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
+                        unsigned ExitNodeId,
+                        const std::map<unsigned, unsigned> &LoopBoundMap) {
+  ILPResult Result;
+  Result.StatusMessage = "Gurobi support not compiled in";
+  return Result;
+}
+
+#endif // ENABLE_GUROBI
 
 } // namespace llvm

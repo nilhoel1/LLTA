@@ -53,7 +53,6 @@ std::unique_ptr<ILPSolver> createILPSolver(ILPSolverType Type) {
 #endif
 
   case ILPSolverType::Auto:
-  default:
     // Try Gurobi first, then fall back to HiGHS
 #ifdef ENABLE_GUROBI
   {
