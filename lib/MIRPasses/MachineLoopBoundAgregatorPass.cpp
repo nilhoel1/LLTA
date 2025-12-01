@@ -116,7 +116,8 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
     std::string Key = Bound.FileName + ":" + std::to_string(Bound.Line);
     // Use the upper bound as the trip count
     JSONBoundsByLocation[Key] = Bound.UpperBound;
-    outs() << "  JSON bound at " << Key << ": " << Bound.UpperBound << "\n";
+    if (DebugPrints)
+      outs() << "  JSON bound at " << Key << ": " << Bound.UpperBound << "\n";
   }
   if (DebugPrints) {
     outs() << "Processing function: " << F.getName() << "\n";
@@ -155,8 +156,8 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
              << L->getHeader()->getName() << "\n";
       continue;
     }
-
-    outs() << "    - Found matching IR loop\n";
+    if (DebugPrints)
+      outs() << "    - Found matching IR loop\n";
 
     unsigned TripCount = 0;
 
@@ -166,16 +167,18 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
     // It also returns the exact trip count, not the bound.
     // But for timing analysis, exact trip count is often what we want if it's
     // constant. If it's not constant, we might want max backedge taken count.
-
-    outs() << "    - SmallConstantTripCount: " << TripCount << "\n";
+    if (DebugPrints)
+      outs() << "    - SmallConstantTripCount: " << TripCount << "\n";
 
     if (TripCount == 0) {
       // Try to get max backedge taken count
       const SCEV *MaxBTC = SE.getConstantMaxBackedgeTakenCount(L);
-      outs() << "    - Trying max backedge taken count: " << *MaxBTC << "\n";
+      if (DebugPrints)
+        outs() << "    - Trying max backedge taken count: " << *MaxBTC << "\n";
       if (auto *C = dyn_cast<SCEVConstant>(MaxBTC)) {
         TripCount = C->getAPInt().getZExtValue() + 1; // Trip count is BTC + 1
-        outs() << "    - Got trip count from max BTC: " << TripCount << "\n";
+        if (DebugPrints)
+          outs() << "    - Got trip count from max BTC: " << TripCount << "\n";
       }
     }
 
@@ -198,11 +201,13 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
             auto It = JSONBoundsByLocation.find(Key);
             if (It != JSONBoundsByLocation.end()) {
               TripCount = It->second;
-              outs() << "    - Got trip count from JSON: " << TripCount
-                     << " (location: " << Key << ")\n";
+              if (DebugPrints)
+                outs() << "    - Got trip count from JSON: " << TripCount
+                       << " (location: " << Key << ")\n";
             } else {
-              outs() << "    - No JSON bound found for location: " << Key
-                     << "\n";
+              if (DebugPrints)
+                outs() << "    - No JSON bound found for location: " << Key
+                       << "\n";
             }
           }
           break; // Only check the first non-PHI instruction
@@ -225,12 +230,13 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
   auto ExistingBounds = TAR.getLoopBoundMap();
   ExistingBounds.insert(LoopBounds.begin(), LoopBounds.end());
   TAR.setLoopBoundMap(ExistingBounds);
-
-  outs() << "MachineLoopBoundAgregatorPass: Found " << LoopBounds.size()
-         << " loop bounds in function " << F.getName() << "\n";
+  if (DebugPrints)
+    outs() << "MachineLoopBoundAgregatorPass: Found " << LoopBounds.size()
+           << " loop bounds in function " << F.getName() << "\n";
   for (auto const &[MBB, Bound] : LoopBounds) {
-    outs() << "  MBB " << MBB->getNumber() << " (" << MBB->getName()
-           << "): " << Bound << "\n";
+    if (DebugPrints)
+      outs() << "  MBB " << MBB->getNumber() << " (" << MBB->getName()
+             << "): " << Bound << "\n";
   }
 
   return false;
