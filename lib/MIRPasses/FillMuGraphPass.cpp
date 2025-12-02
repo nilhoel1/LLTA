@@ -1,5 +1,6 @@
 #include "MIRPasses/FillMuGraphPass.h"
 #include "Utility/Options.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Module.h"
@@ -43,6 +44,7 @@ void FillMuGraphPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<MachineModuleInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<MachineLoopInfoWrapperPass>();
 }
 
 bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
@@ -61,6 +63,7 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
   auto *MMI = &getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   auto MBBLatencyMap = TAR.getMBBLatencyMap();
   auto LoopBoundMap = TAR.getLoopBoundMap();
+  auto *MLI = &getAnalysis<MachineLoopInfoWrapperPass>().getLI();
 
   bool IsEntry = false;
   if (StartFunctionName != "") {
@@ -71,7 +74,7 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
       IsEntry = true;
   }
 
-  TAR.MASG.fillMuGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap);
+  TAR.MASG.fillMuGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap, MLI);
 
   // Check if this is the last function to finalize
   bool IsLast = false;

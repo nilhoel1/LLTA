@@ -3,6 +3,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/IR/BasicBlock.h"
@@ -289,7 +290,8 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
         &MBBLatencyMap,
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
-        &LoopBoundMap) {
+        &LoopBoundMap,
+    MachineLoopInfo *MLI) {
   // Add entry state and Exit state
   bool EntryStateSet = false;
   bool ExitStateSet = false;
@@ -352,6 +354,19 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
       unsigned FromNode = MBBToNodeMap[&MBB];
       unsigned ToNode = MBBToNodeMap[Succ];
       addEdge(FromNode, ToNode);
+
+      // Check for backedge using MachineLoopInfo
+      if (MLI) {
+        MachineLoop *L = MLI->getLoopFor(Succ);
+        if (L && L->getHeader() == Succ && L->contains(&MBB)) {
+          // This is a backedge from MBB to Succ (Header)
+          Nodes.at(ToNode).BackEdgePredecessors.insert(FromNode);
+          if (DebugPrints) {
+            outs() << "  Identified backedge: " << FromNode << " -> " << ToNode
+                   << "\n";
+          }
+        }
+      }
       //}
     }
   }
@@ -409,7 +424,8 @@ bool MuArchStateGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
 
         if (FunctionToReturnNodesMap.find(Callee) != FunctionToReturnNodesMap.end()) {
             for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee]) {
-                addEdge(ReturnNode, CallNode);
+                // FIXME I think this is not ideal...
+                addEdge(ReturnNode, CallNode+1);
             }
         }
     } else {

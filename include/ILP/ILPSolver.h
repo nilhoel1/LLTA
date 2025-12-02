@@ -13,6 +13,7 @@ struct ILPResult {
   bool Success;
   double ObjectiveValue;
   std::map<unsigned, double> NodeExecutionCounts;
+  std::map<std::pair<unsigned, unsigned>, double> EdgeExecutionCounts;
   std::string StatusMessage;
 
   ILPResult()

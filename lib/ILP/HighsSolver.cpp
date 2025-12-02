@@ -45,23 +45,48 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     VarIdx++;
   }
 
+  // Create a mapping from edge to variable index
+  std::map<std::pair<unsigned, unsigned>, int> EdgeToVarIdx;
+  std::vector<std::pair<unsigned, unsigned>> VarIdxToEdge;
+  int EdgeVarIdx = NumNodes; // Edge variables start after node variables
+  int NumEdges = 0;
+
+  for (const auto &NodePair : Nodes) {
+    unsigned SourceId = NodePair.first;
+    const Node &N = NodePair.second;
+    for (unsigned TargetId : N.getSuccessors()) {
+      EdgeToVarIdx[{SourceId, TargetId}] = EdgeVarIdx;
+      VarIdxToEdge.push_back({SourceId, TargetId});
+      EdgeVarIdx++;
+      NumEdges++;
+    }
+  }
+
+  int TotalVars = NumNodes + NumEdges;
+
   // Build the ILP model
   HighsModel Model;
-  Model.lp_.num_col_ = NumNodes;
+  Model.lp_.num_col_ = TotalVars;
   Model.lp_.num_row_ = 0; // Will be set after adding constraints
   Model.lp_.sense_ = ObjSense::kMaximize;
   Model.lp_.offset_ = 0;
 
   // Set column (variable) bounds and costs
-  Model.lp_.col_cost_.resize(NumNodes);
-  Model.lp_.col_lower_.resize(NumNodes, 0.0);
-  Model.lp_.col_upper_.resize(NumNodes, kHighsInf);
-  Model.lp_.integrality_.resize(NumNodes, HighsVarType::kInteger);
+  Model.lp_.col_cost_.resize(TotalVars);
+  Model.lp_.col_lower_.resize(TotalVars, 0.0);
+  Model.lp_.col_upper_.resize(TotalVars, kHighsInf);
+  Model.lp_.integrality_.resize(TotalVars, HighsVarType::kInteger);
 
+  // Set costs for node variables
   for (const auto &NodePair : Nodes) {
     int Idx = NodeToVarIdx[NodePair.first];
     const Node &N = NodePair.second;
     Model.lp_.col_cost_[Idx] = N.getState().getUpperBoundCycles();
+  }
+
+  // Set costs for edge variables (0)
+  for (int I = 0; I < NumEdges; ++I) {
+    Model.lp_.col_cost_[NumNodes + I] = 0.0;
   }
 
   // Prepare constraint storage
@@ -93,52 +118,8 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     RowUpper.push_back(1.0);
   }
 
-  // Constraint 3: Flow conservation for all nodes
-  // For each node: sum(incoming flow from predecessors) = sum(outgoing flow to
-  // successors) This is the standard IPET flow conservation constraint.
-  //
-  // Entry node: has no predecessors, flow comes from "outside" (constrained to
-  // 1) Exit node: has no successors, flow goes to "outside" (constrained to 1)
-  // Other nodes: sum(predecessors' contributions) = sum(successors'
-  // contributions)
-  //
-  // The key insight: x_i represents how many times node i is executed.
-  // Flow conservation: sum(x_j for j in preds) = x_i only if each pred j
-  // has ONLY i as its successor. Otherwise, we need edge-based flow.
-  //
-  // Simpler approach: For each node i (except entry/exit):
-  //   sum(x_j for j in preds) >= x_i  (we can reach i from preds)
-  //   sum(x_k for k in succs) >= x_i  (we can leave i to succs)
-  // But this is also not quite right.
-  //
-  // Standard IPET: For each node i, in-degree flow = out-degree flow = x_i
-  // sum_{(j,i) in E} f_{ji} = x_i  and  sum_{(i,k) in E} f_{ik} = x_i
-  // where f_{ji} is flow on edge (j,i).
-  //
-  // Without explicit edge variables, we approximate:
-  // For non-entry/exit: sum(x_pred) = x_i (works only for single-successor
-  // preds)
-  //
-  // REVISED APPROACH: Don't use flow conservation on predecessors/successors
-  // execution counts directly. Instead, ensure structural consistency via
-  // the graph structure itself. The entry=1, exit=1 constraints plus
-  // loop bounds should be sufficient for a well-formed CFG.
-
-  // Actually, let's use proper edge-based flow conservation.
-  // For each node i: sum of (flows from preds that go TO i) = x_i
-  // But flow from pred j to i is: x_j * (1 / |successors of j|) if uniform
-  // This gets complicated. Let's try a different approach:
-  //
-  // For each node i (except entry):
-  //   x_i <= sum(x_pred for pred in predecessors)
-  // This says: we can only execute i if we came from somewhere
-  //
-  // For each node i (except exit):
-  //   x_i <= sum(x_succ for succ in successors)
-  // This says: after executing i, we must go somewhere
-  //
-  // Combined with entry=1, exit=1, this should work.
-
+  // Constraint 3: Flow conservation with edge variables
+  // For each node i: sum(incoming edges) = x_i and sum(outgoing edges) = x_i
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -146,35 +127,49 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     const auto &Preds = N.getPredecessors();
     const auto &Succs = N.getSuccessors();
 
-    // For non-entry nodes: x_i <= sum(x_pred)
-    // Rearranged: x_i - sum(x_pred) <= 0
-    if (NodeId != EntryNodeId && !Preds.empty()) {
+    // Incoming flow conservation: sum(e_{pred,i}) = x_i
+    // Rearranged: sum(e_{pred,i}) - x_i = 0
+    if (!Preds.empty()) {
       AStart.push_back(CurrentNnz);
+
+      // Add node variable x_i with coefficient -1
       AIndex.push_back(NodeToVarIdx[NodeId]);
-      AValue.push_back(1.0);
+      AValue.push_back(-1.0);
       CurrentNnz++;
+
+      // Add incoming edge variables with coefficient +1
       for (unsigned PredId : Preds) {
-        AIndex.push_back(NodeToVarIdx[PredId]);
-        AValue.push_back(-1.0);
-        CurrentNnz++;
+        auto EdgeKey = std::make_pair(PredId, NodeId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+          AIndex.push_back(EdgeToVarIdx[EdgeKey]);
+          AValue.push_back(1.0);
+          CurrentNnz++;
+        }
       }
-      RowLower.push_back(-kHighsInf);
+      RowLower.push_back(0.0);
       RowUpper.push_back(0.0);
     }
 
-    // For non-exit nodes: x_i <= sum(x_succ)
-    // Rearranged: x_i - sum(x_succ) <= 0
-    if (NodeId != ExitNodeId && !Succs.empty()) {
+    // Outgoing flow conservation: sum(e_{i,succ}) = x_i
+    // Rearranged: sum(e_{i,succ}) - x_i = 0
+    if (!Succs.empty()) {
       AStart.push_back(CurrentNnz);
+
+      // Add node variable x_i with coefficient -1
       AIndex.push_back(NodeToVarIdx[NodeId]);
-      AValue.push_back(1.0);
+      AValue.push_back(-1.0);
       CurrentNnz++;
+
+      // Add outgoing edge variables with coefficient +1
       for (unsigned SuccId : Succs) {
-        AIndex.push_back(NodeToVarIdx[SuccId]);
-        AValue.push_back(-1.0);
-        CurrentNnz++;
+        auto EdgeKey = std::make_pair(NodeId, SuccId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+          AIndex.push_back(EdgeToVarIdx[EdgeKey]);
+          AValue.push_back(1.0);
+          CurrentNnz++;
+        }
       }
-      RowLower.push_back(-kHighsInf);
+      RowLower.push_back(0.0);
       RowUpper.push_back(0.0);
     }
   }
@@ -191,22 +186,41 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
     unsigned LoopBound = N.UpperLoopBound;
 
-    // Identify back edges vs entry edges
+    // Identify back edges vs entry edges using explicit backedge info
     std::vector<unsigned> PreheaderPreds;
     std::vector<unsigned> BackEdgePreds;
 
+    const auto &BackEdges = N.BackEdgePredecessors;
+
     for (unsigned PredId : N.getPredecessors()) {
-      // Simple heuristic: if pred has a higher node ID, assume it's from within
-      // the loop (back edge)
-      if (PredId > NodeId) {
+      if (BackEdges.count(PredId)) {
         BackEdgePreds.push_back(PredId);
       } else {
         PreheaderPreds.push_back(PredId);
       }
     }
 
+    // Fallback to heuristic if no backedges found but node is a loop header
+    if (BackEdgePreds.empty() && !N.getPredecessors().empty()) {
+      PreheaderPreds.clear();
+      for (unsigned PredId : N.getPredecessors()) {
+        bool IsBackEdge = (PredId > NodeId);
+        if (IsBackEdge) {
+          BackEdgePreds.push_back(PredId);
+        } else {
+          PreheaderPreds.push_back(PredId);
+        }
+      }
+      if (BackEdgePreds.empty()) {
+         PreheaderPreds.clear();
+         for (unsigned PredId : N.getPredecessors()) {
+             PreheaderPreds.push_back(PredId);
+         }
+      }
+    }
+
     // Constraint: x_header <= LoopBound * sum(preheader_flow)
-    // Rearranged: x_header - LoopBound * sum(x_preheader) <= 0
+    // Rearranged: x_header - LoopBound * sum(flow(preheader -> header)) <= 0
     if (!PreheaderPreds.empty()) {
       AStart.push_back(CurrentNnz);
       AIndex.push_back(NodeToVarIdx[NodeId]);
@@ -214,9 +228,18 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       CurrentNnz++;
 
       for (unsigned PrehId : PreheaderPreds) {
-        AIndex.push_back(NodeToVarIdx[PrehId]);
-        AValue.push_back(-static_cast<double>(LoopBound));
-        CurrentNnz++;
+        // Use edge variable for flow from preheader to header
+        auto EdgeKey = std::make_pair(PrehId, NodeId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+          AIndex.push_back(EdgeToVarIdx[EdgeKey]);
+          AValue.push_back(-static_cast<double>(LoopBound));
+          CurrentNnz++;
+        } else {
+          // Fallback to node variable if edge not found (should not happen)
+          AIndex.push_back(NodeToVarIdx[PrehId]);
+          AValue.push_back(-static_cast<double>(LoopBound));
+          CurrentNnz++;
+        }
       }
 
       RowLower.push_back(-kHighsInf);
@@ -261,13 +284,23 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   std::error_code EC;
   llvm::raw_fd_ostream LPFile("highs_wcet_model.lp", EC);
   if (!EC) {
+    auto GetVarName = [&](int Idx) -> std::string {
+      if (Idx < NumNodes) {
+        return "N" + std::to_string(VarIdxToNode[Idx]);
+      }
+      int EdgeIdx = Idx - NumNodes;
+      // We don't have a direct mapping from EdgeIdx to a simple ID,
+      // but we can use E + index
+      return "E" + std::to_string(EdgeIdx);
+    };
+
     LPFile << "\\* WCET ILP Model (HiGHS) *\\\n";
     LPFile << "Maximize\n obj: ";
-    for (int I = 0; I < NumNodes; I++) {
+    for (int I = 0; I < TotalVars; I++) {
       if (Model.lp_.col_cost_[I] != 0) {
         if (I > 0 && Model.lp_.col_cost_[I] > 0)
           LPFile << " + ";
-        LPFile << Model.lp_.col_cost_[I] << " x" << VarIdxToNode[I];
+        LPFile << Model.lp_.col_cost_[I] << " " << GetVarName(I);
       }
     }
     LPFile << "\n\nSubject To\n";
@@ -280,7 +313,7 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       for (int Nz = Start; Nz < End; Nz++) {
         if (Nz > Start && AValue[Nz] > 0)
           LPFile << " + ";
-        LPFile << AValue[Nz] << " x" << VarIdxToNode[AIndex[Nz]];
+        LPFile << AValue[Nz] << " " << GetVarName(AIndex[Nz]);
       }
       if (RowLower[Row] == RowUpper[Row]) {
         LPFile << " = " << RowLower[Row];
@@ -298,13 +331,13 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     }
 
     LPFile << "\nBounds\n";
-    for (int I = 0; I < NumNodes; I++) {
-      LPFile << " 0 <= x" << VarIdxToNode[I] << " <= +inf\n";
+    for (int I = 0; I < TotalVars; I++) {
+      LPFile << " 0 <= " << GetVarName(I) << " <= +inf\n";
     }
 
     LPFile << "\nInteger\n";
-    for (int I = 0; I < NumNodes; I++) {
-      LPFile << " x" << VarIdxToNode[I] << "\n";
+    for (int I = 0; I < TotalVars; I++) {
+      LPFile << " " << GetVarName(I) << "\n";
     }
     LPFile << "End\n";
     LPFile.close();
@@ -328,8 +361,15 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
     // Get variable values
     const std::vector<double> &Sol = Highs.getSolution().col_value;
+
+    // Extract node execution counts
     for (int I = 0; I < NumNodes; I++) {
       Result.NodeExecutionCounts[VarIdxToNode[I]] = Sol[I];
+    }
+
+    // Extract edge execution counts
+    for (int I = 0; I < NumEdges; I++) {
+      Result.EdgeExecutionCounts[VarIdxToEdge[I]] = Sol[NumNodes + I];
     }
   } else if (ModelStatus == HighsModelStatus::kInfeasible) {
     Result.StatusMessage = "Model is infeasible";

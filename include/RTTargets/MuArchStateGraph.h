@@ -13,6 +13,7 @@ namespace llvm {
 
 class MachineFunction;
 class MachineModuleInfo;
+class MachineLoopInfo;
 
 struct MuArchState {
   unsigned UpperBoundCycles;
@@ -101,6 +102,11 @@ public:
   std::set<unsigned> Predecessors;
 
   /**
+   * Stores ids of predecessors that are backedges (for loop headers).
+   */
+  std::set<unsigned> BackEdgePredecessors;
+
+  /**
    * Stores the architectural state associated with this Node.
    */
   std::unique_ptr<MuArchState> State;
@@ -172,7 +178,8 @@ public:
       const std::unordered_map<const MachineBasicBlock *, unsigned int>
           &MBBLatencyMap,
       const std::unordered_map<const MachineBasicBlock *, unsigned int>
-          &LoopBoundMap = {});
+          &LoopBoundMap = {},
+      MachineLoopInfo *MLI = nullptr);
 
   /**
    * Fill the MuArchStateGraph with all functions from a module.

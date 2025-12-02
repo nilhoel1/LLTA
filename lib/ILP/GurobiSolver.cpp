@@ -74,6 +74,24 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     VarIdxToNode.push_back(NodePair.first);
     VarIdx++;
   }
+  // Create a mapping from edge to variable index
+
+  // Each edge is identified by (SourceNodeId, TargetNodeId)
+  std::map<std::pair<unsigned, unsigned>, int> EdgeToVarIdx;
+  std::vector<std::pair<unsigned, unsigned>> VarIdxToEdge;
+  int EdgeVarIdx = NumNodes; // Edge variables start after node variables
+  int NumEdges = 0;
+
+  for (const auto &NodePair : Nodes) {
+    unsigned SourceId = NodePair.first;
+    const Node &N = NodePair.second;
+    for (unsigned TargetId : N.getSuccessors()) {
+      EdgeToVarIdx[{SourceId, TargetId}] = EdgeVarIdx;
+      VarIdxToEdge.push_back({SourceId, TargetId});
+      EdgeVarIdx++;
+      NumEdges++;
+    }
+  }
 
   // Add variables: x_i = execution count of node i (integer >= 0)
   // Objective coefficient = UpperBoundCycles for each node
@@ -81,18 +99,56 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   std::vector<double> Lb(NumNodes, 0.0);
   std::vector<double> Ub(NumNodes, GRB_INFINITY);
   std::vector<char> VTypes(NumNodes, GRB_INTEGER);
+  std::vector<std::string> NodeNames(NumNodes);
+  std::vector<char *> NodeNamePtrs(NumNodes);
 
   for (const auto &NodePair : Nodes) {
     int Idx = NodeToVarIdx[NodePair.first];
     const Node &N = NodePair.second;
     Obj[Idx] = N.getState().getUpperBoundCycles();
+    NodeNames[Idx] = "N" + std::to_string(NodePair.first);
+    NodeNamePtrs[Idx] = const_cast<char *>(NodeNames[Idx].c_str());
   }
 
   // Add variables to model
   Error = GRBaddvars(Model, NumNodes, 0, nullptr, nullptr, nullptr, Obj.data(),
-                     Lb.data(), Ub.data(), VTypes.data(), nullptr);
+                     Lb.data(), Ub.data(), VTypes.data(), NodeNamePtrs.data());
   if (Error) {
     Result.StatusMessage = "Failed to add variables to Gurobi model";
+    GRBfreemodel(Model);
+    GRBfreeenv(Env);
+    return Result;
+  }
+
+  // Update model to integrate new variables
+  Error = GRBupdatemodel(Model);
+  if (Error) {
+    Result.StatusMessage = "Failed to update Gurobi model";
+    GRBfreemodel(Model);
+    GRBfreeenv(Env);
+    return Result;
+  }
+
+
+  // Add edge variables: e_{i,j} = execution count of edge (i,j) (integer >= 0)
+  // Objective coefficient = 0 for edge variables (they don't contribute to WCET directly)
+  std::vector<double> EdgeObj(NumEdges, 0.0);
+  std::vector<double> EdgeLb(NumEdges, 0.0);
+  std::vector<double> EdgeUb(NumEdges, GRB_INFINITY);
+  std::vector<char> EdgeVTypes(NumEdges, GRB_INTEGER);
+  std::vector<std::string> EdgeNames(NumEdges);
+  std::vector<char *> EdgeNamePtrs(NumEdges);
+
+  for (int I = 0; I < NumEdges; ++I) {
+    EdgeNames[I] = "E" + std::to_string(I);
+    EdgeNamePtrs[I] = const_cast<char *>(EdgeNames[I].c_str());
+  }
+
+  // Add edge variables to model
+  Error = GRBaddvars(Model, NumEdges, 0, nullptr, nullptr, nullptr, EdgeObj.data(),
+                     EdgeLb.data(), EdgeUb.data(), EdgeVTypes.data(), EdgeNamePtrs.data());
+  if (Error) {
+    Result.StatusMessage = "Failed to add edge variables to Gurobi model";
     GRBfreemodel(Model);
     GRBfreeenv(Env);
     return Result;
@@ -135,10 +191,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     }
   }
 
-  // Constraint 3: Flow conservation for all nodes
-  // For non-entry nodes: x_i <= sum(x_pred) - we can only execute i if we came
-  // from somewhere For non-exit nodes: x_i <= sum(x_succ) - after executing i,
-  // we must go somewhere
+  // Constraint 3: Flow conservation with edge variables
+  // For each node i: sum(incoming edges) = x_i and sum(outgoing edges) = x_i
+  // This ensures proper flow through the graph
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -146,25 +201,29 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     const auto &Preds = N.getPredecessors();
     const auto &Succs = N.getSuccessors();
 
-    // For non-entry nodes: x_i <= sum(x_pred)
-    // Rearranged: x_i - sum(x_pred) <= 0
-    if (NodeId != EntryNodeId && !Preds.empty()) {
+    // Incoming flow conservation: sum(e_{pred,i}) = x_i
+    if (!Preds.empty()) {
       std::vector<int> Indices;
       std::vector<double> Coeffs;
 
+      // Add node variable x_i with coefficient -1
       Indices.push_back(NodeToVarIdx[NodeId]);
-      Coeffs.push_back(1.0);
+      Coeffs.push_back(-1.0);
 
+      // Add incoming edge variables with coefficient +1
       for (unsigned PredId : Preds) {
-        Indices.push_back(NodeToVarIdx[PredId]);
-        Coeffs.push_back(-1.0);
+        auto EdgeKey = std::make_pair(PredId, NodeId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+          Indices.push_back(EdgeToVarIdx[EdgeKey]);
+          Coeffs.push_back(1.0);
+        }
       }
 
       std::string ConstrName = "flow_in_" + std::to_string(NodeId);
       Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
-                           GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
+                           GRB_EQUAL, 0.0, ConstrName.c_str());
       if (Error) {
-        Result.StatusMessage = "Failed to add flow in constraint for node " +
+        Result.StatusMessage = "Failed to add incoming flow constraint for node " +
                                std::to_string(NodeId);
         GRBfreemodel(Model);
         GRBfreeenv(Env);
@@ -172,25 +231,29 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
     }
 
-    // For non-exit nodes: x_i <= sum(x_succ)
-    // Rearranged: x_i - sum(x_succ) <= 0
-    if (NodeId != ExitNodeId && !Succs.empty()) {
+    // Outgoing flow conservation: sum(e_{i,succ}) = x_i
+    if (!Succs.empty()) {
       std::vector<int> Indices;
       std::vector<double> Coeffs;
 
+      // Add node variable x_i with coefficient -1
       Indices.push_back(NodeToVarIdx[NodeId]);
-      Coeffs.push_back(1.0);
+      Coeffs.push_back(-1.0);
 
+      // Add outgoing edge variables with coefficient +1
       for (unsigned SuccId : Succs) {
-        Indices.push_back(NodeToVarIdx[SuccId]);
-        Coeffs.push_back(-1.0);
+        auto EdgeKey = std::make_pair(NodeId, SuccId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+          Indices.push_back(EdgeToVarIdx[EdgeKey]);
+          Coeffs.push_back(1.0);
+        }
       }
 
       std::string ConstrName = "flow_out_" + std::to_string(NodeId);
       Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
-                           GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
+                           GRB_EQUAL, 0.0, ConstrName.c_str());
       if (Error) {
-        Result.StatusMessage = "Failed to add flow out constraint for node " +
+        Result.StatusMessage = "Failed to add outgoing flow constraint for node " +
                                std::to_string(NodeId);
         GRBfreemodel(Model);
         GRBfreeenv(Env);
@@ -211,17 +274,40 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
     unsigned LoopBound = N.UpperLoopBound;
 
-    // Back-edge detection heuristic based on node ID ordering.
-    // Assumes nodes within a loop body have higher IDs than the loop header.
+    // Back-edge detection using explicit backedge info from graph construction
     std::vector<unsigned> PreheaderPreds;
     std::vector<unsigned> BackEdgePreds;
 
+    const auto &BackEdges = N.BackEdgePredecessors;
+
     for (unsigned PredId : N.getPredecessors()) {
-      bool IsBackEdge = (PredId > NodeId);
-      if (IsBackEdge) {
+      if (BackEdges.count(PredId)) {
         BackEdgePreds.push_back(PredId);
       } else {
         PreheaderPreds.push_back(PredId);
+      }
+    }
+
+    // Fallback to heuristic if no backedges found but node is a loop header
+    // This handles cases where MachineLoopInfo wasn't available or failed
+    if (BackEdgePreds.empty() && !N.getPredecessors().empty()) {
+      PreheaderPreds.clear(); // Clear potentially incorrect preheaders
+      for (unsigned PredId : N.getPredecessors()) {
+        bool IsBackEdge = (PredId > NodeId);
+        if (IsBackEdge) {
+          BackEdgePreds.push_back(PredId);
+        } else {
+          PreheaderPreds.push_back(PredId);
+        }
+      }
+      // Clear vectors if we re-populated them
+      if (BackEdgePreds.empty()) {
+         // If heuristic also failed, assume all preds are preheaders (safe default?)
+         // Or maybe we should assume all preds < NodeId are preheaders
+         PreheaderPreds.clear();
+         for (unsigned PredId : N.getPredecessors()) {
+             PreheaderPreds.push_back(PredId);
+         }
       }
     }
 
@@ -234,8 +320,19 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       Coeffs.push_back(1.0);
 
       for (unsigned PrehId : PreheaderPreds) {
-        Indices.push_back(NodeToVarIdx[PrehId]);
-        Coeffs.push_back(-static_cast<double>(LoopBound));
+        // Use edge variable for flow from preheader to header
+        // x_header <= LoopBound * sum(flow(preheader -> header))
+        // flow(preheader -> header) is the edge variable E_{preheader, header}
+
+        auto EdgeKey = std::make_pair(PrehId, NodeId);
+        if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
+            Indices.push_back(EdgeToVarIdx[EdgeKey]);
+            Coeffs.push_back(-static_cast<double>(LoopBound));
+        } else {
+            // Fallback to node variable if edge not found (should not happen)
+            Indices.push_back(NodeToVarIdx[PrehId]);
+            Coeffs.push_back(-static_cast<double>(LoopBound));
+        }
       }
 
       std::string ConstrName = "loop_bound_" + std::to_string(NodeId);
@@ -296,12 +393,19 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     GRBgetdblattr(Model, GRB_DBL_ATTR_OBJVAL, &Result.ObjectiveValue);
     Result.StatusMessage = "Optimal solution found";
 
-    // Get variable values
-    std::vector<double> Values(NumNodes);
-    GRBgetdblattrarray(Model, GRB_DBL_ATTR_X, 0, NumNodes, Values.data());
+    // Get variable values (both nodes and edges)
+    int TotalVars = NumNodes + NumEdges;
+    std::vector<double> Values(TotalVars);
+    GRBgetdblattrarray(Model, GRB_DBL_ATTR_X, 0, TotalVars, Values.data());
 
+    // Extract node execution counts
     for (int I = 0; I < NumNodes; I++) {
       Result.NodeExecutionCounts[VarIdxToNode[I]] = Values[I];
+    }
+
+    // Extract edge execution counts
+    for (int I = 0; I < NumEdges; I++) {
+      Result.EdgeExecutionCounts[VarIdxToEdge[I]] = Values[NumNodes + I];
     }
   } else if (OptStatus == GRB_INFEASIBLE) {
     Result.StatusMessage = "Model is infeasible";

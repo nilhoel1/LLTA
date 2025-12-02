@@ -137,6 +137,13 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   outs() << "Exit node ID: " << ExitNodeId << "\n";
   outs() << "Total nodes: " << Nodes.size() << "\n";
 
+  // Count edges in the graph
+  unsigned NumEdges = 0;
+  for (const auto &NodePair : Nodes) {
+    NumEdges += NodePair.second.getSuccessors().size();
+  }
+  outs() << "Total edges: " << NumEdges << "\n";
+
   // Print loop information (loop bounds are now read directly from
   // Node.UpperLoopBound)
   for (const auto &NodePair : Nodes) {
@@ -303,6 +310,16 @@ bool PathAnalysisPass::doFinalization(Module &M) {
           outs() << "  Node " << NodeId << " (" << N.Name
                  << "): " << static_cast<unsigned>(Count) << " times, "
                  << N.getState().getUpperBoundCycles() << " cycles/exec\n";
+        }
+      }
+
+      if (!Result.EdgeExecutionCounts.empty()) {
+        outs() << "\nEdge execution counts:\n";
+        for (const auto &[Edge, Count] : Result.EdgeExecutionCounts) {
+          if (Count > 0) {
+            outs() << "  Edge (" << Edge.first << " -> " << Edge.second
+                   << "): " << static_cast<unsigned>(Count) << " times\n";
+          }
         }
       }
     }
