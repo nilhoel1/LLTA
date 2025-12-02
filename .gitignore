@@ -96,3 +96,5 @@ compile_commands.json
 *.DS_Store*
 
 *.S
+*lp
+*.mps

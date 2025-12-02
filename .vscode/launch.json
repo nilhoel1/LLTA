@@ -12,7 +12,7 @@
       "args": ["${workspaceFolder}/tests/msp430/blink/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/blink/msp.elf.dump",
       "-start-function=main",
-      "--ilp-solver=highs"],
+      "--ilp-solver=all"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }, {
@@ -23,7 +23,7 @@
       "args": ["${workspaceFolder}/tests/msp430/cnt/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/cnt/msp.elf.dump",
       "-start-function=main",
-      "--ilp-solver=highs"],
+      "--ilp-solver=all"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }, {
@@ -34,7 +34,7 @@
       "args": ["${workspaceFolder}/tests/msp430/cover/msp.ll",
       "-dump-file=${workspaceFolder}/tests/msp430/cover/msp.elf.dump",
       "-start-function=main",
-      "--ilp-solver=highs"],
+      "--ilp-solver=all"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }

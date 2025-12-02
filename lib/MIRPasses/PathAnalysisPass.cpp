@@ -156,7 +156,7 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   // Handle "all" option - run all available solvers and compare
   if (SolverType == ILPSolverType::All) {
     outs() << "\n=== Running all available ILP solvers for comparison ===\n";
-    
+
     struct SolverResult {
       std::string Name;
       bool Available;
@@ -165,9 +165,9 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       double SolveTime; // in milliseconds
       std::string Status;
     };
-    
+
     std::vector<SolverResult> Results;
-    
+
     // Try Gurobi
 #ifdef ENABLE_GUROBI
     {
@@ -175,12 +175,12 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       SolverResult SR;
       SR.Name = "Gurobi";
       SR.Available = Solver->isAvailable();
-      
+
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
         ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
-        
+
         SR.Success = Result.Success;
         SR.WCET = Result.ObjectiveValue;
         SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
@@ -194,7 +194,7 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       Results.push_back(SR);
     }
 #endif
-    
+
     // Try HiGHS
 #ifdef ENABLE_HIGHS
     {
@@ -202,12 +202,12 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       SolverResult SR;
       SR.Name = "HiGHS";
       SR.Available = Solver->isAvailable();
-      
+
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
         ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
-        
+
         SR.Success = Result.Success;
         SR.WCET = Result.ObjectiveValue;
         SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
@@ -221,30 +221,30 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       Results.push_back(SR);
     }
 #endif
-    
+
     // Print comparison table
     outs() << "\n=== Solver Comparison Table ===\n";
     outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
     outs() << "| Solver    | Available  | Success | WCET (cyc)  | Time (ms)       | Status              |\n";
     outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
-    
+
     for (const auto &SR : Results) {
-      outs() << "| " << format("%-9s", SR.Name);
+      outs() << "| " << format("%-9s", SR.Name.c_str());
       outs() << " | " << format("%-10s", SR.Available ? "Yes" : "No");
       outs() << " | " << format("%-7s", SR.Success ? "Yes" : "No");
       outs() << " | " << format("%11.0f", SR.WCET);
       outs() << " | " << format("%15.3f", SR.SolveTime);
-      outs() << " | " << format("%-19s", SR.Status.substr(0, 19));
+      outs() << " | " << format("%-19s", SR.Status.substr(0, 19).c_str());
       outs() << " |\n";
     }
-    
+
     outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
-    
+
     // Find fastest successful solver
     double FastestTime = std::numeric_limits<double>::max();
     std::string FastestSolver;
     bool AnySuccess = false;
-    
+
     for (const auto &SR : Results) {
       if (SR.Available && SR.Success) {
         AnySuccess = true;
@@ -254,11 +254,11 @@ bool PathAnalysisPass::doFinalization(Module &M) {
         }
       }
     }
-    
+
     if (AnySuccess) {
       outs() << "\nFastest solver: " << FastestSolver << " (" << format("%.3f", FastestTime) << " ms)\n";
     }
-    
+
     return AnySuccess;
   }
 
