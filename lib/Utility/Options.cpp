@@ -26,6 +26,7 @@ cl::opt<std::string> LoopBoundsJSON(
 
 cl::opt<std::string> ILPSolverOption(
     "ilp-solver", cl::init("auto"),
-    cl::desc("ILP solver to use for WCET calculation: 'auto' (default), 'gurobi', or 'highs'. "
-             "With 'auto', Gurobi is tried first if available and licensed, then HiGHS."),
+    cl::desc("ILP solver to use for WCET calculation: 'auto' (default), 'gurobi', 'highs', or 'all'. "
+             "With 'auto', Gurobi is tried first if available and licensed, then HiGHS. "
+             "With 'all', all available solvers are run and their performance is compared."),
     cl::cat(LLTA));

@@ -45,7 +45,7 @@ public:
 };
 
 /// Enum for solver type selection
-enum class ILPSolverType { Auto, Gurobi, HiGHS };
+enum class ILPSolverType { Auto, Gurobi, HiGHS, All };
 
 /// Factory function to create an ILP solver based on the requested type
 /// @param Type The type of solver to create

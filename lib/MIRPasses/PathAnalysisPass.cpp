@@ -17,9 +17,20 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Format.h"
 #include <cassert>
+#include <chrono>
+#include <limits>
 #include <memory>
 #include <vector>
+
+#ifdef ENABLE_GUROBI
+#include "ILP/GurobiSolver.h"
+#endif
+
+#ifdef ENABLE_HIGHS
+#include "ILP/HighsSolver.h"
+#endif
 
 namespace llvm {
 
@@ -81,18 +92,7 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   // Parse solver type from command-line option
   ILPSolverType SolverType = parseILPSolverType(ILPSolverOption);
 
-  // Create the solver
-  auto Solver = createILPSolver(SolverType);
-  if (!Solver) {
-    outs() << "Error: No ILP solver available. Cannot compute WCET.\n";
-    return false;
-  }
-
-  outs() << "Using ILP solver: " << Solver->getName() << "\n";
-
   // Find entry and exit nodes
-  // Entry node: node with name "Entry" or the first node with no predecessors
-  // Exit node: node with name "Exit" or the last node with no successors
   unsigned EntryNodeId = UINT_MAX;
   unsigned ExitNodeId = UINT_MAX;
 
@@ -151,9 +151,128 @@ bool PathAnalysisPass::doFinalization(Module &M) {
     }
   }
 
+  std::map<unsigned, unsigned> EmptyLoopBoundMap; // Not used anymore
+
+  // Handle "all" option - run all available solvers and compare
+  if (SolverType == ILPSolverType::All) {
+    outs() << "\n=== Running all available ILP solvers for comparison ===\n";
+    
+    struct SolverResult {
+      std::string Name;
+      bool Available;
+      bool Success;
+      double WCET;
+      double SolveTime; // in milliseconds
+      std::string Status;
+    };
+    
+    std::vector<SolverResult> Results;
+    
+    // Try Gurobi
+#ifdef ENABLE_GUROBI
+    {
+      auto Solver = std::make_unique<GurobiSolver>();
+      SolverResult SR;
+      SR.Name = "Gurobi";
+      SR.Available = Solver->isAvailable();
+      
+      if (SR.Available) {
+        auto StartTime = std::chrono::high_resolution_clock::now();
+        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
+        auto EndTime = std::chrono::high_resolution_clock::now();
+        
+        SR.Success = Result.Success;
+        SR.WCET = Result.ObjectiveValue;
+        SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
+        SR.Status = Result.StatusMessage;
+      } else {
+        SR.Success = false;
+        SR.WCET = 0.0;
+        SR.SolveTime = 0.0;
+        SR.Status = "Not available (no license)";
+      }
+      Results.push_back(SR);
+    }
+#endif
+    
+    // Try HiGHS
+#ifdef ENABLE_HIGHS
+    {
+      auto Solver = std::make_unique<HighsSolver>();
+      SolverResult SR;
+      SR.Name = "HiGHS";
+      SR.Available = Solver->isAvailable();
+      
+      if (SR.Available) {
+        auto StartTime = std::chrono::high_resolution_clock::now();
+        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
+        auto EndTime = std::chrono::high_resolution_clock::now();
+        
+        SR.Success = Result.Success;
+        SR.WCET = Result.ObjectiveValue;
+        SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
+        SR.Status = Result.StatusMessage;
+      } else {
+        SR.Success = false;
+        SR.WCET = 0.0;
+        SR.SolveTime = 0.0;
+        SR.Status = "Not available";
+      }
+      Results.push_back(SR);
+    }
+#endif
+    
+    // Print comparison table
+    outs() << "\n=== Solver Comparison Table ===\n";
+    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
+    outs() << "| Solver    | Available  | Success | WCET (cyc)  | Time (ms)       | Status              |\n";
+    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
+    
+    for (const auto &SR : Results) {
+      outs() << "| " << format("%-9s", SR.Name);
+      outs() << " | " << format("%-10s", SR.Available ? "Yes" : "No");
+      outs() << " | " << format("%-7s", SR.Success ? "Yes" : "No");
+      outs() << " | " << format("%11.0f", SR.WCET);
+      outs() << " | " << format("%15.3f", SR.SolveTime);
+      outs() << " | " << format("%-19s", SR.Status.substr(0, 19));
+      outs() << " |\n";
+    }
+    
+    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
+    
+    // Find fastest successful solver
+    double FastestTime = std::numeric_limits<double>::max();
+    std::string FastestSolver;
+    bool AnySuccess = false;
+    
+    for (const auto &SR : Results) {
+      if (SR.Available && SR.Success) {
+        AnySuccess = true;
+        if (SR.SolveTime < FastestTime) {
+          FastestTime = SR.SolveTime;
+          FastestSolver = SR.Name;
+        }
+      }
+    }
+    
+    if (AnySuccess) {
+      outs() << "\nFastest solver: " << FastestSolver << " (" << format("%.3f", FastestTime) << " ms)\n";
+    }
+    
+    return AnySuccess;
+  }
+
+  // Single solver mode
+  auto Solver = createILPSolver(SolverType);
+  if (!Solver) {
+    outs() << "Error: No ILP solver available. Cannot compute WCET.\n";
+    return false;
+  }
+
+  outs() << "Using ILP solver: " << Solver->getName() << "\n";
+
   // Solve the ILP (loop bounds are read from nodes directly, map not used)
   outs() << "\nSolving WCET ILP...\n";
-  std::map<unsigned, unsigned> EmptyLoopBoundMap; // Not used anymore
   ILPResult Result =
       Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
 

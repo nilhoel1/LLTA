@@ -16,6 +16,8 @@ ILPSolverType parseILPSolverType(const std::string &SolverName) {
     return ILPSolverType::Gurobi;
   } else if (SolverName == "highs") {
     return ILPSolverType::HiGHS;
+  } else if (SolverName == "all") {
+    return ILPSolverType::All;
   }
   return ILPSolverType::Auto;
 }
