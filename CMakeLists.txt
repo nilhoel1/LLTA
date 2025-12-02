@@ -47,7 +47,7 @@ if(LLTA_ENABLE_GUROBI)
   if(GUROBI_FOUND)
     message(STATUS "Gurobi found - building with Gurobi optimizer support")
     add_definitions(-DENABLE_GUROBI)
-    set(GUROBI_LIBS ${GUROBI_CXX_LIBRARY})
+    set(GUROBI_LIBS ${GUROBI_LIBRARIES})
   else()
     message(WARNING "Gurobi not found - building without Gurobi optimizer support")
     set(GUROBI_INCLUDE_DIRS "")
@@ -92,6 +92,6 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 export_executable_symbols_for_plugins(llta)

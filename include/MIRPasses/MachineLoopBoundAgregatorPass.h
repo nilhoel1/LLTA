@@ -12,6 +12,7 @@ namespace llvm {
 class MachineLoopBoundAgregatorPass : public MachineFunctionPass {
 public:
   static char ID;
+  bool DebugPrints = false;
   TimingAnalysisResults &TAR;
 
   MachineLoopBoundAgregatorPass(TimingAnalysisResults &TAR);
