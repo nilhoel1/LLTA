@@ -21,7 +21,6 @@ public:
   TimingAnalysisResults &TAR;
   CallSplitterPass(TimingAnalysisResults &TAR);
 
-
   bool runOnMachineBasicBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &F) override;
   bool doFinalization(Module &) override;
@@ -35,7 +34,8 @@ public:
   };
 
   virtual llvm::StringRef getPassName() const override {
-    return "CallSplitterPass, splitting all BB wiht function calls into three  BBs";
+    return "CallSplitterPass, splitting all BB wiht function calls into three  "
+           "BBs";
   }
 };
 

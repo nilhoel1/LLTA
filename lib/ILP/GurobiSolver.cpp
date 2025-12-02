@@ -14,23 +14,21 @@ namespace llvm {
 
 GurobiSolver::GurobiSolver() : HasLicense(false) {
   // Try to create a Gurobi environment to check license
-  GRBenv *env = nullptr;
-  int error = GRBloadenv(&env, nullptr);
-  if (error == 0 && env != nullptr) {
+  GRBenv *Env = nullptr;
+  int Error = GRBloadenv(&Env, nullptr);
+  if (Error == 0 && Env != nullptr) {
     HasLicense = true;
-    GRBfreeenv(env);
+    GRBfreeenv(Env);
   } else {
     HasLicense = false;
     DEBUG_WITH_TYPE("ilp", dbgs() << "Gurobi license check failed with error "
-                                  << error << "\n");
+                                  << Error << "\n");
   }
 }
 
 GurobiSolver::~GurobiSolver() = default;
 
-bool GurobiSolver::isAvailable() const {
-  return HasLicense;
-}
+bool GurobiSolver::isAvailable() const { return HasLicense; }
 
 ILPResult
 GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
@@ -38,31 +36,31 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
                         const std::map<unsigned, unsigned> &LoopBoundMap) {
   ILPResult Result;
 
-  GRBenv *env = nullptr;
-  GRBmodel *model = nullptr;
-  int error = 0;
+  GRBenv *Env = nullptr;
+  GRBmodel *Model = nullptr;
+  int Error = 0;
 
   // Create environment
-  error = GRBloadenv(&env, nullptr);
-  if (error) {
+  Error = GRBloadenv(&Env, nullptr);
+  if (Error) {
     Result.StatusMessage = "Failed to create Gurobi environment";
     return Result;
   }
 
   // Suppress Gurobi output
-  GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
+  GRBsetintparam(Env, GRB_INT_PAR_OUTPUTFLAG, 0);
 
   // Create an empty model
-  error = GRBnewmodel(env, &model, "WCET", 0, nullptr, nullptr, nullptr, nullptr,
-                      nullptr);
-  if (error) {
+  Error = GRBnewmodel(Env, &Model, "WCET", 0, nullptr, nullptr, nullptr,
+                      nullptr, nullptr);
+  if (Error) {
     Result.StatusMessage = "Failed to create Gurobi model";
-    GRBfreeenv(env);
+    GRBfreeenv(Env);
     return Result;
   }
 
   // Set objective to maximize
-  GRBsetintattr(model, GRB_INT_ATTR_MODELSENSE, GRB_MAXIMIZE);
+  GRBsetintattr(Model, GRB_INT_ATTR_MODELSENSE, GRB_MAXIMIZE);
 
   const auto &Nodes = MASG.getNodes();
   int NumNodes = Nodes.size();
@@ -91,21 +89,21 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Add variables to model
-  error = GRBaddvars(model, NumNodes, 0, nullptr, nullptr, nullptr, Obj.data(),
+  Error = GRBaddvars(Model, NumNodes, 0, nullptr, nullptr, nullptr, Obj.data(),
                      Lb.data(), Ub.data(), VTypes.data(), nullptr);
-  if (error) {
+  if (Error) {
     Result.StatusMessage = "Failed to add variables to Gurobi model";
-    GRBfreemodel(model);
-    GRBfreeenv(env);
+    GRBfreemodel(Model);
+    GRBfreeenv(Env);
     return Result;
   }
 
   // Update model to integrate new variables
-  error = GRBupdatemodel(model);
-  if (error) {
+  Error = GRBupdatemodel(Model);
+  if (Error) {
     Result.StatusMessage = "Failed to update Gurobi model";
-    GRBfreemodel(model);
-    GRBfreeenv(env);
+    GRBfreemodel(Model);
+    GRBfreeenv(Env);
     return Result;
   }
 
@@ -113,12 +111,12 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   {
     int EntryIdx = NodeToVarIdx[EntryNodeId];
     double Coeff = 1.0;
-    error = GRBaddconstr(model, 1, &EntryIdx, &Coeff, GRB_EQUAL, 1.0,
+    Error = GRBaddconstr(Model, 1, &EntryIdx, &Coeff, GRB_EQUAL, 1.0,
                          "entry_constraint");
-    if (error) {
+    if (Error) {
       Result.StatusMessage = "Failed to add entry constraint";
-      GRBfreemodel(model);
-      GRBfreeenv(env);
+      GRBfreemodel(Model);
+      GRBfreeenv(Env);
       return Result;
     }
   }
@@ -127,19 +125,20 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   {
     int ExitIdx = NodeToVarIdx[ExitNodeId];
     double Coeff = 1.0;
-    error = GRBaddconstr(model, 1, &ExitIdx, &Coeff, GRB_EQUAL, 1.0,
+    Error = GRBaddconstr(Model, 1, &ExitIdx, &Coeff, GRB_EQUAL, 1.0,
                          "exit_constraint");
-    if (error) {
+    if (Error) {
       Result.StatusMessage = "Failed to add exit constraint";
-      GRBfreemodel(model);
-      GRBfreeenv(env);
+      GRBfreemodel(Model);
+      GRBfreeenv(Env);
       return Result;
     }
   }
 
   // Constraint 3: Flow conservation for all nodes
-  // For non-entry nodes: x_i <= sum(x_pred) - we can only execute i if we came from somewhere
-  // For non-exit nodes: x_i <= sum(x_succ) - after executing i, we must go somewhere
+  // For non-entry nodes: x_i <= sum(x_pred) - we can only execute i if we came
+  // from somewhere For non-exit nodes: x_i <= sum(x_succ) - after executing i,
+  // we must go somewhere
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -162,13 +161,13 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
 
       std::string ConstrName = "flow_in_" + std::to_string(NodeId);
-      error = GRBaddconstr(model, Indices.size(), Indices.data(), Coeffs.data(),
+      Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
                            GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
-      if (error) {
-        Result.StatusMessage =
-            "Failed to add flow in constraint for node " + std::to_string(NodeId);
-        GRBfreemodel(model);
-        GRBfreeenv(env);
+      if (Error) {
+        Result.StatusMessage = "Failed to add flow in constraint for node " +
+                               std::to_string(NodeId);
+        GRBfreemodel(Model);
+        GRBfreeenv(Env);
         return Result;
       }
     }
@@ -188,13 +187,13 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
 
       std::string ConstrName = "flow_out_" + std::to_string(NodeId);
-      error = GRBaddconstr(model, Indices.size(), Indices.data(), Coeffs.data(),
+      Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
                            GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
-      if (error) {
-        Result.StatusMessage =
-            "Failed to add flow out constraint for node " + std::to_string(NodeId);
-        GRBfreemodel(model);
-        GRBfreeenv(env);
+      if (Error) {
+        Result.StatusMessage = "Failed to add flow out constraint for node " +
+                               std::to_string(NodeId);
+        GRBfreemodel(Model);
+        GRBfreeenv(Env);
         return Result;
       }
     }
@@ -216,7 +215,7 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     // Assumes nodes within a loop body have higher IDs than the loop header.
     std::vector<unsigned> PreheaderPreds;
     std::vector<unsigned> BackEdgePreds;
-    
+
     for (unsigned PredId : N.getPredecessors()) {
       bool IsBackEdge = (PredId > NodeId);
       if (IsBackEdge) {
@@ -240,13 +239,13 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
 
       std::string ConstrName = "loop_bound_" + std::to_string(NodeId);
-      error = GRBaddconstr(model, Indices.size(), Indices.data(), Coeffs.data(),
+      Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
                            GRB_LESS_EQUAL, 0.0, ConstrName.c_str());
-      if (error) {
-        Result.StatusMessage =
-            "Failed to add loop bound constraint for node " + std::to_string(NodeId);
-        GRBfreemodel(model);
-        GRBfreeenv(env);
+      if (Error) {
+        Result.StatusMessage = "Failed to add loop bound constraint for node " +
+                               std::to_string(NodeId);
+        GRBfreemodel(Model);
+        GRBfreeenv(Env);
         return Result;
       }
     } else {
@@ -254,55 +253,55 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       int HeaderIdx = NodeToVarIdx[NodeId];
       double Coeff = 1.0;
       std::string ConstrName = "loop_bound_abs_" + std::to_string(NodeId);
-      error = GRBaddconstr(model, 1, &HeaderIdx, &Coeff, GRB_LESS_EQUAL,
+      Error = GRBaddconstr(Model, 1, &HeaderIdx, &Coeff, GRB_LESS_EQUAL,
                            static_cast<double>(LoopBound), ConstrName.c_str());
-      if (error) {
+      if (Error) {
         Result.StatusMessage =
             "Failed to add absolute loop bound constraint for node " +
             std::to_string(NodeId);
-        GRBfreemodel(model);
-        GRBfreeenv(env);
+        GRBfreemodel(Model);
+        GRBfreeenv(Env);
         return Result;
       }
     }
   }
 
   // Write model to file for debugging
-  error = GRBwrite(model, "gurobi_wcet_model.lp");
-  if (error) {
+  Error = GRBwrite(Model, "gurobi_wcet_model.lp");
+  if (Error) {
     outs() << "Warning: Failed to write Gurobi model to file\n";
   }
-  
+
   // Also write in MPS format
-  error = GRBwrite(model, "gurobi_wcet_model.mps");
-  if (error) {
+  Error = GRBwrite(Model, "gurobi_wcet_model.mps");
+  if (Error) {
     outs() << "Warning: Failed to write Gurobi MPS model to file\n";
   }
 
   // Optimize model
-  error = GRBoptimize(model);
-  if (error) {
+  Error = GRBoptimize(Model);
+  if (Error) {
     Result.StatusMessage = "Gurobi optimization failed";
-    GRBfreemodel(model);
-    GRBfreeenv(env);
+    GRBfreemodel(Model);
+    GRBfreeenv(Env);
     return Result;
   }
 
   // Check optimization status
   int OptStatus;
-  GRBgetintattr(model, GRB_INT_ATTR_STATUS, &OptStatus);
+  GRBgetintattr(Model, GRB_INT_ATTR_STATUS, &OptStatus);
 
   if (OptStatus == GRB_OPTIMAL) {
     Result.Success = true;
-    GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &Result.ObjectiveValue);
+    GRBgetdblattr(Model, GRB_DBL_ATTR_OBJVAL, &Result.ObjectiveValue);
     Result.StatusMessage = "Optimal solution found";
 
     // Get variable values
     std::vector<double> Values(NumNodes);
-    GRBgetdblattrarray(model, GRB_DBL_ATTR_X, 0, NumNodes, Values.data());
+    GRBgetdblattrarray(Model, GRB_DBL_ATTR_X, 0, NumNodes, Values.data());
 
-    for (int i = 0; i < NumNodes; i++) {
-      Result.NodeExecutionCounts[VarIdxToNode[i]] = Values[i];
+    for (int I = 0; I < NumNodes; I++) {
+      Result.NodeExecutionCounts[VarIdxToNode[I]] = Values[I];
     }
   } else if (OptStatus == GRB_INFEASIBLE) {
     Result.StatusMessage = "Model is infeasible";
@@ -314,8 +313,8 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Clean up
-  GRBfreemodel(model);
-  GRBfreeenv(env);
+  GRBfreemodel(Model);
+  GRBfreeenv(Env);
 
   return Result;
 }
@@ -326,9 +325,7 @@ GurobiSolver::GurobiSolver() : HasLicense(false) {}
 
 GurobiSolver::~GurobiSolver() = default;
 
-bool GurobiSolver::isAvailable() const {
-  return false;
-}
+bool GurobiSolver::isAvailable() const { return false; }
 
 ILPResult
 GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,

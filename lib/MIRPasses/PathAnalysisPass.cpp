@@ -15,9 +15,8 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <chrono>
 #include <limits>
@@ -138,7 +137,8 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   outs() << "Exit node ID: " << ExitNodeId << "\n";
   outs() << "Total nodes: " << Nodes.size() << "\n";
 
-  // Print loop information (loop bounds are now read directly from Node.UpperLoopBound)
+  // Print loop information (loop bounds are now read directly from
+  // Node.UpperLoopBound)
   for (const auto &NodePair : Nodes) {
     const Node &N = NodePair.second;
     if (N.IsLoop) {
@@ -178,12 +178,15 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
-        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
+        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
+                                             EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
 
         SR.Success = Result.Success;
         SR.WCET = Result.ObjectiveValue;
-        SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
+        SR.SolveTime =
+            std::chrono::duration<double, std::milli>(EndTime - StartTime)
+                .count();
         SR.Status = Result.StatusMessage;
       } else {
         SR.Success = false;
@@ -205,12 +208,15 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
-        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
+        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
+                                             EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
 
         SR.Success = Result.Success;
         SR.WCET = Result.ObjectiveValue;
-        SR.SolveTime = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
+        SR.SolveTime =
+            std::chrono::duration<double, std::milli>(EndTime - StartTime)
+                .count();
         SR.Status = Result.StatusMessage;
       } else {
         SR.Success = false;
@@ -224,9 +230,12 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 
     // Print comparison table
     outs() << "\n=== Solver Comparison Table ===\n";
-    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
-    outs() << "| Solver    | Available  | Success | WCET (cyc)  | Time (ms)       | Status              |\n";
-    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
+    outs() << "+-----------+------------+---------+-------------+--------------"
+              "---+---------------------+\n";
+    outs() << "| Solver    | Available  | Success | WCET (cyc)  | Time (ms)    "
+              "   | Status              |\n";
+    outs() << "+-----------+------------+---------+-------------+--------------"
+              "---+---------------------+\n";
 
     for (const auto &SR : Results) {
       outs() << "| " << format("%-9s", SR.Name.c_str());
@@ -238,7 +247,8 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       outs() << " |\n";
     }
 
-    outs() << "+-----------+------------+---------+-------------+-----------------+---------------------+\n";
+    outs() << "+-----------+------------+---------+-------------+--------------"
+              "---+---------------------+\n";
 
     // Find fastest successful solver
     double FastestTime = std::numeric_limits<double>::max();
@@ -256,7 +266,8 @@ bool PathAnalysisPass::doFinalization(Module &M) {
     }
 
     if (AnySuccess) {
-      outs() << "\nFastest solver: " << FastestSolver << " (" << format("%.3f", FastestTime) << " ms)\n";
+      outs() << "\nFastest solver: " << FastestSolver << " ("
+             << format("%.3f", FastestTime) << " ms)\n";
     }
 
     return AnySuccess;

@@ -1,7 +1,6 @@
 #ifndef UTIL_OPTIONS_H
 #define UTIL_OPTIONS_H
 
-
 #include "llvm/Support/CommandLine.h"
 
 /**

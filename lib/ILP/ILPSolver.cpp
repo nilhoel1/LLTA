@@ -14,9 +14,11 @@ namespace llvm {
 ILPSolverType parseILPSolverType(const std::string &SolverName) {
   if (SolverName == "gurobi") {
     return ILPSolverType::Gurobi;
-  } else if (SolverName == "highs") {
+  }
+  if (SolverName == "highs") {
     return ILPSolverType::HiGHS;
-  } else if (SolverName == "all") {
+  }
+  if (SolverName == "all") {
     return ILPSolverType::All;
   }
   return ILPSolverType::Auto;
@@ -68,18 +70,23 @@ std::unique_ptr<ILPSolver> createILPSolver(ILPSolverType Type) {
 #endif
 
 #ifdef ENABLE_HIGHS
-  {
-    auto HighsSolverPtr = std::make_unique<HighsSolver>();
-    if (HighsSolverPtr->isAvailable()) {
-      outs() << "Auto-selected HiGHS solver\n";
-      return HighsSolverPtr;
+    {
+      auto HighsSolverPtr = std::make_unique<HighsSolver>();
+      if (HighsSolverPtr->isAvailable()) {
+        outs() << "Auto-selected HiGHS solver\n";
+        return HighsSolverPtr;
+      }
     }
-  }
 #endif
 
     outs() << "No ILP solver available\n";
     return nullptr;
+  case ILPSolverType::All: {
+    assert(false && "Should not reach here!");
+    break;
   }
+  }
+  return nullptr;
 }
 
 } // namespace llvm

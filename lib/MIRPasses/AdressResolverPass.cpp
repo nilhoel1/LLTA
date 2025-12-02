@@ -7,7 +7,6 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include <fstream>
 #include <map>
-#include <sstream>
 
 namespace llvm {
 
@@ -37,7 +36,7 @@ struct InstructionLineRelation {
   std::string AssemblerCode;
   MachineInstr *Instruction;
 };
-std::multimap<int, InstructionLineRelation> InstructionRelationData;
+static std::multimap<int, InstructionLineRelation> InstructionRelationData;
 
 /**
  * @brief Checks if unknown Instructions were found.
@@ -103,10 +102,10 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
       if (It->second.Address > 0) {
         // std::stringstream Sstream;
         // Sstream << std::hex << It->second.Address;
-        // llvm::outs() << "Line: " << It->first << " Instruction: " 
-        // << It->second.Instruction->getOpcode() << " Function: " 
-        // << It->second.Instruction->getMF()->getName() << " - Address: 0x" 
-        // << Sstream.str() << " MachineCode: " << It->second.MachineCode 
+        // llvm::outs() << "Line: " << It->first << " Instruction: "
+        // << It->second.Instruction->getOpcode() << " Function: "
+        // << It->second.Instruction->getMF()->getName() << " - Address: 0x"
+        // << Sstream.str() << " MachineCode: " << It->second.MachineCode
         // << " AssemblerCode: " << It->second.AssemblerCode <<"\n";
       } else {
         // llvm::outs() << "Line: " << It->first << " Instruction: " <<
@@ -117,7 +116,8 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
     }
   }
   if (DebugPrints)
-    llvm::outs() << "\n" << NumberInstructionMapped << " instructions mapped to "
+    llvm::outs() << "\n"
+                 << NumberInstructionMapped << " instructions mapped to "
                  << NumberObjdumpEntries << " address information entries\n"
                  << NumberInstructionsNotMapped
                  << " instructions could not be mapped to address "
@@ -132,7 +132,7 @@ void AdressResolverPass::parseFile(std::string ModuleIdentifier) {
   if (DebugPrints)
     llvm::outs() << "Scanning " << ModuleIdentifier
                  << "for address and line information\n";
-  
+
   int LineNumber = -1;
   int NewLineNumber;
   std::string Line;

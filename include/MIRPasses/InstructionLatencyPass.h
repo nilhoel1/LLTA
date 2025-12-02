@@ -4,7 +4,6 @@
 #include "TimingAnalysisResults.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/Target/TargetMachine.h"
 
 #include <cstddef>
 #include <unordered_map>
@@ -27,13 +26,14 @@ public:
 
   InstructionLatencyPass(TimingAnalysisResults &TAR);
 
-  const std::unordered_map<const MachineBasicBlock *, unsigned int> &getMBBLatencyMap() const {
+  const std::unordered_map<const MachineBasicBlock *, unsigned int> &
+  getMBBLatencyMap() const {
     return MBBLatencyMap;
   }
-  std::unordered_map<const MachineBasicBlock *, unsigned int> &getMBBLatencyMap() {
+  std::unordered_map<const MachineBasicBlock *, unsigned int> &
+  getMBBLatencyMap() {
     return MBBLatencyMap;
   }
-
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -48,7 +48,6 @@ public:
 
   unsigned int getMSP430Latency(const MachineInstr &I);
 };
-
 
 MachineFunctionPass *createInstructionLatencyPass(TimingAnalysisResults &TAR);
 } // namespace llvm

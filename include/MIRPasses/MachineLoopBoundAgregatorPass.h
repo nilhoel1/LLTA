@@ -3,9 +3,6 @@
 
 #include "TimingAnalysisResults.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/MachineLoopInfo.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ScalarEvolution.h"
 
 namespace llvm {
 
@@ -22,7 +19,8 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
-MachineFunctionPass *createMachineLoopBoundAgregatorPass(TimingAnalysisResults &TAR);
+MachineFunctionPass *
+createMachineLoopBoundAgregatorPass(TimingAnalysisResults &TAR);
 
 } // namespace llvm
 

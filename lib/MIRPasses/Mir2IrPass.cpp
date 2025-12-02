@@ -15,7 +15,8 @@ char MIRtoIRPass::ID = 0;
  *
  * @param TM
  */
-MIRtoIRPass::MIRtoIRPass(TimingAnalysisResults &TAR) : MachineFunctionPass(ID), TAR(TAR) {}
+MIRtoIRPass::MIRtoIRPass(TimingAnalysisResults &TAR)
+    : MachineFunctionPass(ID), TAR(TAR) {}
 
 /**
  * @brief Checks if unknown Instructions were found.

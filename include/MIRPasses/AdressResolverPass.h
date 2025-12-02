@@ -32,7 +32,7 @@ public:
     return "Adress Resolver Pass";
   }
 };
-} // namespace llvm,
+} // namespace llvm
 
 namespace llvm {
 MachineFunctionPass *createAdressResolverPass(TimingAnalysisResults &TAR);

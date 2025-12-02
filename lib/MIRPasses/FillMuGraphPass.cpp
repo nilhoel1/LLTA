@@ -22,7 +22,8 @@ Function *FillMuGraphPass::getStartingFunction(CallGraph &CG) {
     auto *F = CGNode.second->getFunction();
     if (F == nullptr)
       continue;
-    if (!StartFunctionName.empty() && F->getName().compare(StartFunctionName) == 0) {
+    if (!StartFunctionName.empty() &&
+        F->getName().compare(StartFunctionName) == 0) {
       return F;
     }
     auto NumRef = CGNode.second->getNumReferences();
@@ -63,9 +64,11 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
 
   bool IsEntry = false;
   if (StartFunctionName != "") {
-      if (F.getName() == StartFunctionName) IsEntry = true;
+    if (F.getName() == StartFunctionName)
+      IsEntry = true;
   } else {
-      if (StartingFunction && &F.getFunction() == StartingFunction) IsEntry = true;
+    if (StartingFunction && &F.getFunction() == StartingFunction)
+      IsEntry = true;
   }
 
   TAR.MASG.fillMuGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap);
@@ -76,17 +79,17 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
   // Find the last function that is not a declaration (has a body)
   // Because MachineFunctions are only created for functions with bodies.
   for (auto &Func : MMI->getModule()->getFunctionList()) {
-      if (!Func.isDeclaration()) {
-          LastF = &Func;
-      }
+    if (!Func.isDeclaration()) {
+      LastF = &Func;
+    }
   }
 
   if (LastF == &F.getFunction()) {
-      IsLast = true;
+    IsLast = true;
   }
 
   if (IsLast) {
-      TAR.MASG.finalize(F, MMI);
+    TAR.MASG.finalize(F, MMI);
   }
 
   return false;

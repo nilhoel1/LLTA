@@ -1,5 +1,5 @@
-#include "TimingAnalysisResults.h"
 #include "RTTargets/MuArchStateGraph.h"
+#include "TimingAnalysisResults.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -11,7 +11,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/Target/TargetMachine.h"
 
-//#include "MIRPasses/InstructionLatencyPass.h"
+// #include "MIRPasses/InstructionLatencyPass.h"
 namespace llvm {
 
 /**

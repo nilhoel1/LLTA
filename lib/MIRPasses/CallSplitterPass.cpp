@@ -1,7 +1,6 @@
 #include "MIRPasses/CallSplitterPass.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
-#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
@@ -54,13 +53,12 @@ bool CallSplitterPass::runOnMachineFunction(MachineFunction &F) {
   //   }
   // }
 
-
   /*split basic blocks before and after calls*/
   for (auto &MBB : F) {
 
     /*split block after call*/
     for (auto &MI : MBB) {
-      if (MI.isCall()){
+      if (MI.isCall()) {
         MBB.splitAt(MI);
       }
     }
@@ -76,9 +74,8 @@ bool CallSplitterPass::runOnMachineFunction(MachineFunction &F) {
     //   ++Counter;
     // }
 
-    // /*split block before call, if a call exists and is not the first instruction*/
-    // Counter = 0;
-    // if (PositionBeforeCall >= 0){
+    // /*split block before call, if a call exists and is not the first
+    // instruction*/ Counter = 0; if (PositionBeforeCall >= 0){
     //   for (auto &MI : MBB) {
     //     if (Counter == PositionBeforeCall){
     //       MBB.splitAt(MI);
@@ -86,7 +83,6 @@ bool CallSplitterPass::runOnMachineFunction(MachineFunction &F) {
     //     ++Counter;
     //   }
     // }
-
   }
 
   /*output basic blocks after splitting*/
@@ -106,10 +102,8 @@ bool CallSplitterPass::runOnMachineFunction(MachineFunction &F) {
   //   outs() << "\nNumber BB: " << Count << "\n-----------------\n";
   // }
 
-
   return false;
 }
-
 
 MachineFunctionPass *createCallSplitterPass(TimingAnalysisResults &TAR) {
   return new CallSplitterPass(TAR);

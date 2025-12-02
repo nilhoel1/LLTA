@@ -1,7 +1,6 @@
 #include "MIRPasses/DebugIRPass.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
-#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
@@ -16,8 +15,7 @@ char DebugIRPass::ID = 0;
  *
  * @param TM
  */
-DebugIRPass::DebugIRPass()
-    : MachineFunctionPass(ID){}
+DebugIRPass::DebugIRPass() : MachineFunctionPass(ID) {}
 
 /**
  * @brief Checks if unknown Instructions were found.
@@ -40,16 +38,12 @@ bool DebugIRPass::runOnMachineFunction(MachineFunction &F) {
     outs() << "MachineFunction: " << F.getName() << "\n";
   }
 
-
-  for (auto &MBB : F) {
-    for (auto &MI : MBB) {
-    }
-  }
+  // for (auto &MBB : F) {
+  //   for (auto &MI : MBB) {
+  //   }
+  // }
   return false;
 }
 
-
-MachineFunctionPass *createDebugIRPass() {
-  return new DebugIRPass();
-}
+MachineFunctionPass *createDebugIRPass() { return new DebugIRPass(); }
 } // namespace llvm

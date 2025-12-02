@@ -14,19 +14,19 @@ namespace llvm {
 class MachineFunction;
 class MachineModuleInfo;
 
-  struct MuArchState {
-    unsigned UpperBoundCycles;
-    unsigned LowerBoundCycles;
+struct MuArchState {
+  unsigned UpperBoundCycles;
+  unsigned LowerBoundCycles;
 
-    MuArchState(unsigned UpperBound, unsigned LowerBound)
-        : UpperBoundCycles(UpperBound), LowerBoundCycles(LowerBound) {}
+  MuArchState(unsigned UpperBound, unsigned LowerBound)
+      : UpperBoundCycles(UpperBound), LowerBoundCycles(LowerBound) {}
 
-    unsigned getUpperBoundCycles() const { return UpperBoundCycles; }
-    unsigned getLowerBoundCycles() const { return LowerBoundCycles; }
+  unsigned getUpperBoundCycles() const { return UpperBoundCycles; }
+  unsigned getLowerBoundCycles() const { return LowerBoundCycles; }
 
-    void setUpperBoundCycles(unsigned Cycles) { UpperBoundCycles = Cycles; }
-    void setLowerBoundCycles(unsigned Cycles) { LowerBoundCycles = Cycles; }
-  };
+  void setUpperBoundCycles(unsigned Cycles) { UpperBoundCycles = Cycles; }
+  void setLowerBoundCycles(unsigned Cycles) { LowerBoundCycles = Cycles; }
+};
 
 class Node {
 public:
@@ -72,7 +72,7 @@ public:
 
   unsigned int UpperLoopBound;
 
-  Node* NestedLoopHeader;
+  Node *NestedLoopHeader;
 
   friend std::ostream &operator<<(std::ostream &Stream, Node Node) {
     Stream << "Node ID: " << Node.Id;
@@ -118,8 +118,9 @@ public:
 
   ~MuArchStateGraph();
 
-  unsigned addNode(MuArchState State, MachineBasicBlock * MBB);
-  unsigned addNode(MuArchState State, MachineBasicBlock * MBB, StringRef NodeName);
+  unsigned addNode(MuArchState State, MachineBasicBlock *MBB);
+  unsigned addNode(MuArchState State, MachineBasicBlock *MBB,
+                   StringRef NodeName);
 
   /**
    * Adds an edge to the graph from the Node with id start to the Node with
@@ -147,34 +148,41 @@ public:
 
   void dump() const;
 
-  friend std::ostream &operator<<(std::ostream &Stream, MuArchStateGraph Graph) {
-  for (const auto &Nd : Graph.getNodes()) {
-    Stream << Nd.second;
+  friend std::ostream &operator<<(std::ostream &Stream,
+                                  MuArchStateGraph Graph) {
+    for (const auto &Nd : Graph.getNodes()) {
+      Stream << Nd.second;
+    }
+    return Stream;
   }
-  return Stream;
-  }
-
 
   bool dump2Dot(StringRef FileName);
 
   /**
-   * Get a list of node IDs that exist in the graph but are not mapped to any MBB.
+   * Get a list of node IDs that exist in the graph but are not mapped to any
+   * MBB.
    */
   std::vector<unsigned> getNodesNotInMBBMap() const;
 
   /**
    * Fill the MuArchStateGraph with nodes and edges from a MachineFunction.
    */
-  bool fillMuGraphWithFunction(MachineFunction &MF, bool IsEntry,
-                   const std::unordered_map<const MachineBasicBlock *, unsigned int> &MBBLatencyMap,
-                   const std::unordered_map<const MachineBasicBlock *, unsigned int> &LoopBoundMap = {});
+  bool fillMuGraphWithFunction(
+      MachineFunction &MF, bool IsEntry,
+      const std::unordered_map<const MachineBasicBlock *, unsigned int>
+          &MBBLatencyMap,
+      const std::unordered_map<const MachineBasicBlock *, unsigned int>
+          &LoopBoundMap = {});
 
   /**
    * Fill the MuArchStateGraph with all functions from a module.
    */
-  void fillMuGraph(MachineModuleInfo *MMI,
-                   const std::unordered_map<const MachineBasicBlock *, unsigned int> &MBBLatencyMap,
-                   const std::unordered_map<const MachineBasicBlock *, unsigned int> &LoopBoundMap = {});
+  void
+  fillMuGraph(MachineModuleInfo *MMI,
+              const std::unordered_map<const MachineBasicBlock *, unsigned int>
+                  &MBBLatencyMap,
+              const std::unordered_map<const MachineBasicBlock *, unsigned int>
+                  &LoopBoundMap = {});
 
   /**
    * Finalize the graph by adding call and return edges.

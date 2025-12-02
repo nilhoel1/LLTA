@@ -1,6 +1,5 @@
 #include "MIRPasses/InstructionLatencyPass.h"
 #include <cassert>
-#include <optional>
 #include <utility>
 
 #include "MCTargetDesc/MSP430MCTargetDesc.h"
@@ -20,7 +19,9 @@ char InstructionLatencyPass::ID = 0;
  * @param TM
  */
 InstructionLatencyPass::InstructionLatencyPass(TimingAnalysisResults &TAR)
-    : MachineFunctionPass(ID), TAR(TAR), MBBLatencyMap(std::unordered_map<const MachineBasicBlock *, unsigned int>()) {}
+    : MachineFunctionPass(ID), TAR(TAR),
+      MBBLatencyMap(
+          std::unordered_map<const MachineBasicBlock *, unsigned int>()) {}
 
 /**
  * @brief Checks if unknown Instructions were found.
@@ -28,7 +29,7 @@ InstructionLatencyPass::InstructionLatencyPass(TimingAnalysisResults &TAR)
  *
  * @return false
  */
-//bool InstructionLatencyPass::doFinalization(Module &M) { return false; }
+// bool InstructionLatencyPass::doFinalization(Module &M) { return false; }
 
 /**
  * @brief Iterates over MachineFunction
@@ -40,7 +41,8 @@ InstructionLatencyPass::InstructionLatencyPass(TimingAnalysisResults &TAR)
  */
 bool InstructionLatencyPass::runOnMachineFunction(MachineFunction &F) {
   if (DebugPrints)
-    outs() << "Running InstructionLatencyPass on Function: " << F.getName() << "\n";
+    outs() << "Running InstructionLatencyPass on Function: " << F.getName()
+           << "\n";
   auto Arch = F.getTarget().getTargetTriple().getArch();
   for (auto &MBB : F) {
     // Sum up the latencies of all instructions in the basic block
@@ -60,7 +62,8 @@ bool InstructionLatencyPass::runOnMachineFunction(MachineFunction &F) {
       }
       Latency += InstructionLatency;
     }
-    std::pair<const MachineBasicBlock *, unsigned int> MBBLatencyPair=std::make_pair(&MBB, Latency);
+    std::pair<const MachineBasicBlock *, unsigned int> MBBLatencyPair =
+        std::make_pair(&MBB, Latency);
     auto NoDuplicate = MBBLatencyMap.insert(MBBLatencyPair);
     if (!NoDuplicate.second) {
       // If the pair already exists, print a warning
@@ -68,7 +71,6 @@ bool InstructionLatencyPass::runOnMachineFunction(MachineFunction &F) {
              << " with Latency: " << Latency << "\n";
     }
     assert(NoDuplicate.second && "Duplicate MBB found in MBBLatencyMap");
-
   }
   TAR.setMBBLatencyMap(MBBLatencyMap);
   return false;

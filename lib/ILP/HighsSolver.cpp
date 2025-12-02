@@ -1,7 +1,6 @@
 #include "ILP/HighsSolver.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/FileSystem.h"
 
 #ifdef ENABLE_HIGHS
 #include <Highs.h>
@@ -30,8 +29,8 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   ILPResult Result;
 
 #ifdef ENABLE_HIGHS
-  Highs highs;
-  highs.setOptionValue("output_flag", false);
+  Highs Highs;
+  Highs.setOptionValue("output_flag", false);
 
   const auto &Nodes = MASG.getNodes();
   int NumNodes = Nodes.size();
@@ -95,15 +94,16 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Constraint 3: Flow conservation for all nodes
-  // For each node: sum(incoming flow from predecessors) = sum(outgoing flow to successors)
-  // This is the standard IPET flow conservation constraint.
-  // 
-  // Entry node: has no predecessors, flow comes from "outside" (constrained to 1)
-  // Exit node: has no successors, flow goes to "outside" (constrained to 1)
-  // Other nodes: sum(predecessors' contributions) = sum(successors' contributions)
+  // For each node: sum(incoming flow from predecessors) = sum(outgoing flow to
+  // successors) This is the standard IPET flow conservation constraint.
+  //
+  // Entry node: has no predecessors, flow comes from "outside" (constrained to
+  // 1) Exit node: has no successors, flow goes to "outside" (constrained to 1)
+  // Other nodes: sum(predecessors' contributions) = sum(successors'
+  // contributions)
   //
   // The key insight: x_i represents how many times node i is executed.
-  // Flow conservation: sum(x_j for j in preds) = x_i only if each pred j 
+  // Flow conservation: sum(x_j for j in preds) = x_i only if each pred j
   // has ONLY i as its successor. Otherwise, we need edge-based flow.
   //
   // Simpler approach: For each node i (except entry/exit):
@@ -116,13 +116,14 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   // where f_{ji} is flow on edge (j,i).
   //
   // Without explicit edge variables, we approximate:
-  // For non-entry/exit: sum(x_pred) = x_i (works only for single-successor preds)
+  // For non-entry/exit: sum(x_pred) = x_i (works only for single-successor
+  // preds)
   //
   // REVISED APPROACH: Don't use flow conservation on predecessors/successors
   // execution counts directly. Instead, ensure structural consistency via
   // the graph structure itself. The entry=1, exit=1 constraints plus
   // loop bounds should be sufficient for a well-formed CFG.
-  
+
   // Actually, let's use proper edge-based flow conservation.
   // For each node i: sum of (flows from preds that go TO i) = x_i
   // But flow from pred j to i is: x_j * (1 / |successors of j|) if uniform
@@ -132,12 +133,12 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   //   x_i <= sum(x_pred for pred in predecessors)
   // This says: we can only execute i if we came from somewhere
   //
-  // For each node i (except exit):  
+  // For each node i (except exit):
   //   x_i <= sum(x_succ for succ in successors)
   // This says: after executing i, we must go somewhere
   //
   // Combined with entry=1, exit=1, this should work.
-  
+
   for (const auto &NodePair : Nodes) {
     unsigned NodeId = NodePair.first;
     const Node &N = NodePair.second;
@@ -247,93 +248,96 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   Model.lp_.a_matrix_.value_ = AValue;
 
   // Pass model to HiGHS
-  HighsStatus status = highs.passModel(Model);
-  if (status != HighsStatus::kOk) {
+  HighsStatus Status = Highs.passModel(Model);
+  if (Status != HighsStatus::kOk) {
     Result.StatusMessage = "Failed to pass model to HiGHS";
     return Result;
   }
 
   // Write model to file for debugging
-  highs.writeModel("highs_wcet_model.mps");
-  
+  Highs.writeModel("highs_wcet_model.mps");
+
   // Also write a human-readable LP format
   std::error_code EC;
   llvm::raw_fd_ostream LPFile("highs_wcet_model.lp", EC);
   if (!EC) {
     LPFile << "\\* WCET ILP Model (HiGHS) *\\\n";
     LPFile << "Maximize\n obj: ";
-    for (int i = 0; i < NumNodes; i++) {
-      if (Model.lp_.col_cost_[i] != 0) {
-        if (i > 0 && Model.lp_.col_cost_[i] > 0) LPFile << " + ";
-        LPFile << Model.lp_.col_cost_[i] << " x" << VarIdxToNode[i];
+    for (int I = 0; I < NumNodes; I++) {
+      if (Model.lp_.col_cost_[I] != 0) {
+        if (I > 0 && Model.lp_.col_cost_[I] > 0)
+          LPFile << " + ";
+        LPFile << Model.lp_.col_cost_[I] << " x" << VarIdxToNode[I];
       }
     }
     LPFile << "\n\nSubject To\n";
-    
+
     // Print constraints
-    for (size_t row = 0; row < RowLower.size(); row++) {
-      LPFile << " c" << row << ": ";
-      int start = AStart[row];
-      int end = AStart[row + 1];
-      for (int nz = start; nz < end; nz++) {
-        if (nz > start && AValue[nz] > 0) LPFile << " + ";
-        LPFile << AValue[nz] << " x" << VarIdxToNode[AIndex[nz]];
+    for (size_t Row = 0; Row < RowLower.size(); Row++) {
+      LPFile << " c" << Row << ": ";
+      int Start = AStart[Row];
+      int End = AStart[Row + 1];
+      for (int Nz = Start; Nz < End; Nz++) {
+        if (Nz > Start && AValue[Nz] > 0)
+          LPFile << " + ";
+        LPFile << AValue[Nz] << " x" << VarIdxToNode[AIndex[Nz]];
       }
-      if (RowLower[row] == RowUpper[row]) {
-        LPFile << " = " << RowLower[row];
+      if (RowLower[Row] == RowUpper[Row]) {
+        LPFile << " = " << RowLower[Row];
       } else {
-        if (RowLower[row] > -kHighsInf) {
-          LPFile << " >= " << RowLower[row];
+        if (RowLower[Row] > -kHighsInf) {
+          LPFile << " >= " << RowLower[Row];
         }
-        if (RowUpper[row] < kHighsInf) {
-          if (RowLower[row] > -kHighsInf) LPFile << ",";
-          LPFile << " <= " << RowUpper[row];
+        if (RowUpper[Row] < kHighsInf) {
+          if (RowLower[Row] > -kHighsInf)
+            LPFile << ",";
+          LPFile << " <= " << RowUpper[Row];
         }
       }
       LPFile << "\n";
     }
-    
+
     LPFile << "\nBounds\n";
-    for (int i = 0; i < NumNodes; i++) {
-      LPFile << " 0 <= x" << VarIdxToNode[i] << " <= +inf\n";
+    for (int I = 0; I < NumNodes; I++) {
+      LPFile << " 0 <= x" << VarIdxToNode[I] << " <= +inf\n";
     }
-    
+
     LPFile << "\nInteger\n";
-    for (int i = 0; i < NumNodes; i++) {
-      LPFile << " x" << VarIdxToNode[i] << "\n";
+    for (int I = 0; I < NumNodes; I++) {
+      LPFile << " x" << VarIdxToNode[I] << "\n";
     }
     LPFile << "End\n";
     LPFile.close();
   }
 
   // Solve
-  status = highs.run();
-  if (status != HighsStatus::kOk) {
+  Status = Highs.run();
+  if (Status != HighsStatus::kOk) {
     Result.StatusMessage = "HiGHS optimization failed";
     return Result;
   }
 
   // Get solution info
-  const HighsInfo &info = highs.getInfo();
-  HighsModelStatus modelStatus = highs.getModelStatus();
+  const HighsInfo &Info = Highs.getInfo();
+  HighsModelStatus ModelStatus = Highs.getModelStatus();
 
-  if (modelStatus == HighsModelStatus::kOptimal) {
+  if (ModelStatus == HighsModelStatus::kOptimal) {
     Result.Success = true;
-    Result.ObjectiveValue = info.objective_function_value;
+    Result.ObjectiveValue = Info.objective_function_value;
     Result.StatusMessage = "Optimal solution found";
 
     // Get variable values
-    const std::vector<double> &Sol = highs.getSolution().col_value;
-    for (int i = 0; i < NumNodes; i++) {
-      Result.NodeExecutionCounts[VarIdxToNode[i]] = Sol[i];
+    const std::vector<double> &Sol = Highs.getSolution().col_value;
+    for (int I = 0; I < NumNodes; I++) {
+      Result.NodeExecutionCounts[VarIdxToNode[I]] = Sol[I];
     }
-  } else if (modelStatus == HighsModelStatus::kInfeasible) {
+  } else if (ModelStatus == HighsModelStatus::kInfeasible) {
     Result.StatusMessage = "Model is infeasible";
-  } else if (modelStatus == HighsModelStatus::kUnbounded) {
+  } else if (ModelStatus == HighsModelStatus::kUnbounded) {
     Result.StatusMessage = "Model is unbounded";
   } else {
-    Result.StatusMessage =
-        "Optimization ended with status " + std::to_string(static_cast<int>(modelStatus));
+    Result.StatusMessage = "Optimization ended with status " +
+                           std::to_string(static_cast<int>(ModelStatus));
   }
 
 #else

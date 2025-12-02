@@ -1,9 +1,8 @@
+#include "TimingAnalysisResults.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveStacks.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/Target/TargetMachine.h"
-#include "TimingAnalysisResults.h"
 
 namespace llvm {
 

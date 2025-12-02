@@ -74,13 +74,12 @@ bool AccessAnalysesPass::runOnMachineFunction(MachineFunction &F) {
     SE.print(outs());
   }
 
-  for (auto &MBB : F) {
-    for (auto &MI : MBB) {
-    }
-  }
+  // for (auto &MBB : F) {
+  //   for (auto &MI : MBB) {
+  //   }
+  // }
   return false;
 }
-
 
 MachineFunctionPass *createAccessAnalysesPass(TargetMachine &TM) {
   return new AccessAnalysesPass(TM);
