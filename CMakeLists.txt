@@ -94,4 +94,28 @@ add_subdirectory(lib)
 
 target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
+# Configure RPATH to find shared libraries at runtime
+set(LLTA_RPATHS "")
+
+if(HIGHS_FOUND)
+  # Extract directory from the library path
+  get_filename_component(HIGHS_LIB_DIR "${HIGHS_LIBRARIES}" DIRECTORY)
+  list(APPEND LLTA_RPATHS "${HIGHS_LIB_DIR}")
+endif()
+
+if(GUROBI_FOUND)
+  # GUROBI_LIBRARIES is a list, take the last element which is usually the C library
+  list(GET GUROBI_LIBRARIES -1 GUROBI_MAIN_LIB)
+  get_filename_component(GUROBI_LIB_DIR "${GUROBI_MAIN_LIB}" DIRECTORY)
+  list(APPEND LLTA_RPATHS "${GUROBI_LIB_DIR}")
+endif()
+
+if(LLTA_RPATHS)
+  set_target_properties(llta PROPERTIES
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_RPATH "${LLTA_RPATHS}"
+    BUILD_RPATH "${LLTA_RPATHS}"
+  )
+endif()
+
 export_executable_symbols_for_plugins(llta)

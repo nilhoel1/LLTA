@@ -25,6 +25,10 @@ if (NOT HIGHS_FOUND)
             "/opt/homebrew/lib"
             )
 
+    # Force static linking for HiGHS
+    set(_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+
     find_path(HIGHS_INCLUDE_DIR Highs.h
             PATHS ${SEARCH_PATHS_FOR_HEADERS}
             NO_DEFAULT_PATH
@@ -50,6 +54,9 @@ if (NOT HIGHS_FOUND)
                 PATHS ${SEARCH_PATHS_FOR_LIBRARIES}
                 )
     endif()
+
+    # Restore original library suffixes
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
 
     # setup header file directories
     set(HIGHS_INCLUDE_DIRS ${HIGHS_INCLUDE_DIR})

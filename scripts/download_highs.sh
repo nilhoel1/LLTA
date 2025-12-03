@@ -47,7 +47,7 @@ echo "Building HiGHS from source..."
 cd "HiGHS-${HIGHS_VERSION}"
 mkdir -p build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${EXTERNAL_DEPS_DIR}/highs"
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="${EXTERNAL_DEPS_DIR}/highs"
 make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 make install
 cd ../..
