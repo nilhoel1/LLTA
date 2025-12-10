@@ -21,14 +21,22 @@
         - `ILPSolver.cpp`: Abstract base class for solvers.
     - **`lib/Utility`**:
         - `Options.cpp`: Command-line option definitions and parsing helpers.
-    - **`lib/Analysis`** (Planned):
-        - `WorklistSolver.cpp`: Generic fixpoint algorithm.
-        - `PipelineAnalysis.cpp`: Core domain logic.
-        - `SystemState.cpp`: Lattice element implementation.
-        - `HardwareStrategies.cpp`: Cache and BP models.
+    - **`lib/Analysis`**: Hybrid WCET Analysis Engine.
+        - `WorklistSolver.cpp`: Generic fixpoint algorithm using worklist.
+        - `PipelineAnalysis.cpp`: Core domain logic implementing AbstractAnalysis.
+        - `SystemState.cpp`: Lattice element implementation inheriting AbstractState.
+        - `HardwareStrategies.cpp`: Cache and Branch Predictor models (LRUCache, AlwaysMissCache).
+        - `Targets/MSP430Latency.cpp`: MSP430-specific instruction latency calculations.
 - **`include/`**: Header files for the libraries.
-    - `include/llta/Analysis/`: Headers for `SystemState`, `PipelineAnalysis`, `HardwareStrategies`.
-    - `include/llta/Solver/`: Header for `WorklistSolver`.
+    - `include/llta/Analysis/`: Abstract interfaces for the analysis framework.
+        - `AbstractState.h`: Abstract base class for lattice elements.
+        - `AbstractAnalysis.h`: Abstract interface for analysis logic (transfer, join).
+        - `WorklistSolver.h`: Generic worklist solver class.
+    - `include/Analysis/`: Concrete implementations.
+        - `SystemState.h`: Concrete system state inheriting AbstractState.
+        - `PipelineAnalysis.h`: Concrete pipeline analysis inheriting AbstractAnalysis.
+        - `HardwareStrategies.h`: Cache and BP strategy interfaces with factory functions.
+        - `Targets/MSP430Latency.h`: MSP430 latency helper declarations.
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.
 - **`build/`**: Build artifacts (generated).
