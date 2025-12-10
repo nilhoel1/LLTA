@@ -20,3 +20,13 @@ The `llta` tool executes the following MachineFunction passes in order (defined 
 ### PathAnalysisPass & InstructionLatencyPass
 - **`InstructionLatencyPass`**: Uses `MSP430` opcode switch-cases (in `getMSP430Latency`) to assign cycle counts to individual instructions. It feeds latency data into the `TimingAnalysisResults`.
 - **`PathAnalysisPass`**: The consumer of the graph and latency data. It constructs an ILP (Integer Linear Programming) problem to find the longest path (Worst-Case Execution Time) through the code. It uses **Gurobi** or **HiGHS** to solve this optimization problem.
+
+## Hybrid LLTA Analysis Engine
+
+> [!IMPORTANT]
+> The project is transitioning to a **Hybrid Analysis Engine** that combines a static Worklist Solver with dynamic Hardware Strategies.
+> See [ANALYSIS_DESIGN.md](ANALYSIS_DESIGN.md) for the detailed blueprint.
+
+- **Solver**: Generic fixpoint engine.
+- **Pipeline Domain**: Logic for hazard detection.
+- **Strategies**: Pluggable C++ models for Cache and Branch Prediction.

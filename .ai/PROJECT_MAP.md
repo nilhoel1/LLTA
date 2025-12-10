@@ -24,7 +24,14 @@
         - `ILPSolver.cpp`: Abstract base class for solvers.
     - **`lib/Utility`**:
         - `Options.cpp`: Command-line option definitions and parsing helpers.
+    - **`lib/Analysis`** (Planned):
+        - `WorklistSolver.cpp`: Generic fixpoint algorithm.
+        - `PipelineAnalysis.cpp`: Core domain logic.
+        - `SystemState.cpp`: Lattice element implementation.
+        - `HardwareStrategies.cpp`: Cache and BP models.
 - **`include/`**: Header files for the libraries.
+    - `include/llta/Analysis/`: Headers for `SystemState`, `PipelineAnalysis`, `HardwareStrategies`.
+    - `include/llta/Solver/`: Header for `WorklistSolver`.
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.
 - **`build/`**: Build artifacts (generated).
