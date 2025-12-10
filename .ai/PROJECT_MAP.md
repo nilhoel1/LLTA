@@ -12,9 +12,6 @@
         - `CallSplitterPass.cpp`: Simplifies CFG by splitting basic blocks at call sites.
         - `AdressResolverPass.cpp`: Resolves symbolic addresses for memory analysis.
         - `AsmDumpAndCheckPass.cpp`: Verification pass that dumps assembly.
-        - `Mir2IrPass.cpp`: Back-conversion for reporting.
-        - `DebugIRPass.cpp`: Diagnostic pass for inspecting IR state.
-        - `AccessAnalyses.cpp`: (Likely) Memory access pattern analysis.
     - **`lib/RTTargets`**: Hardware modeling.
         - `MSP430/MSP430MuArchState.cpp`: MSP430-specific microarchitectural state model.
         - `MuArchStateGraph.cpp`: System-independent graph representation of hardware states.
