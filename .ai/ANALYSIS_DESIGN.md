@@ -22,6 +22,7 @@ graph TD
         State -.-> |Implements| SysState[SystemState]
         
         Pipeline --> |1. Base Latency| SchedModel
+        Pipeline -.-> |Fallback| MSP430[MSP430 Latency Helper]
         Pipeline --> |2. Dynamic Penalties| Strat[Hardware Strategies]
         
         Strat --> Cache[Cache Model C++]
@@ -202,14 +203,15 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 3: The Concrete Analysis Domain**
     - **Target:** `include/llta/Analysis/PipelineAnalysis.h`, `lib/Analysis/PipelineAnalysis.cpp`
-    - **Context:** `include/llta/Analysis/AbstractAnalysis.h`
+    - **Context:** `include/llta/Analysis/AbstractAnalysis.h`, `include/Analysis/Targets/MSP430Latency.h`
     - **AI Prompt:**
       > **System:** Act as an LLVM Backend Developer.
       > **Task:** Implement `PipelineAnalysis` which inherits from `AbstractAnalysis`.
       > **Instructions:**
       > 1. Define `PipelineAnalysis` in the header, inheriting from `AbstractAnalysis`.
       > 2. Implement `transfer`, `join`, `getInitialState`, and `isLessOrEqual`.
-      > 3. `transfer` should model instruction latency using `llvm::TargetSchedModel`.
+      > 3. **Latency Calculation**: `transfer` should primarily use `llvm::TargetSchedModel`.
+      >    - **CRITICAL**: If the target is MSP430 or SchedModel is incomplete, include `Analysis/Targets/MSP430Latency.h` and use `getMSP430Latency(MI)` as a fallback.
       > 4. `join` should take the maximum cycle count (safest upper bound).
       > 5. Use `dynamic_cast` to safely cast `AbstractState` to `SystemState` inside methods.
 
