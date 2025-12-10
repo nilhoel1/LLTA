@@ -32,6 +32,9 @@
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.
 - **`build/`**: Build artifacts (generated).
+- **`tests/`**: Integration and regression tests.
+    - **`regression_test.py`**: Mandatory regression test suite.
+    - **`msp430/`**: Test cases (`cnt`, `cover`, etc).
 
 ## Entry Point
 - **`LLTA.cpp`**: The main driver for the `llta` tool, setting up the pass pipeline and invoking the analysis.
