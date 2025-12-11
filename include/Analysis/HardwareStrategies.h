@@ -3,6 +3,7 @@
 
 #include "llvm/CodeGen/MachineInstr.h"
 #include <cstdint>
+#include <memory>
 
 namespace llta {
 
@@ -32,6 +33,24 @@ public:
   /// Returns Hit/Miss to calculate latency penalties.
   virtual AccessResult access(uint64_t AbstractAddress, bool IsWrite) = 0;
 };
+
+//===----------------------------------------------------------------------===//
+// Factory Functions
+//===----------------------------------------------------------------------===//
+
+/// Creates a conservative cache model that always returns Miss.
+std::unique_ptr<CacheStrategy> createAlwaysMissCache();
+
+/// Creates a set-associative LRU cache model.
+/// \param NumSets Number of cache sets.
+/// \param Associativity Number of ways per set.
+/// \param LineSize Size of each cache line in bytes.
+std::unique_ptr<CacheStrategy> createLRUCache(unsigned NumSets,
+                                              unsigned Associativity,
+                                              unsigned LineSize);
+
+/// Creates a simple branch predictor that always predicts taken.
+std::unique_ptr<BranchPredictorStrategy> createAlwaysTakenPredictor();
 
 } // namespace llta
 

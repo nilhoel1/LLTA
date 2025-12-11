@@ -1,18 +1,92 @@
 #include "Analysis/PipelineAnalysis.h"
 #include "Analysis/Targets/MSP430Latency.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
 namespace llta {
 
-PipelineAnalysis::PipelineAnalysis(const TargetSubtargetInfo &STI)
-    : SchedModel(STI.getSchedModel()) {
+PipelineAnalysis::PipelineAnalysis(const TargetSubtargetInfo &STI) {
+  SchedModel.init(&STI);
   // Initialize strategies (defaults for now)
   // ICache = std::make_unique<LRUCache>(...);
 }
+
+// AbstractAnalysis interface implementation
+
+std::unique_ptr<AbstractState> PipelineAnalysis::getInitialState() {
+  auto State = std::make_unique<SystemState>();
+  State->CycleCount = 0;
+  return State;
+}
+
+std::unique_ptr<AbstractState>
+PipelineAnalysis::transfer(const AbstractState &FromState,
+                           const MachineInstr &MI) {
+  const auto *SysState = dynamic_cast<const SystemState *>(&FromState);
+  if (!SysState) {
+    llvm_unreachable("PipelineAnalysis::transfer: Invalid state type");
+  }
+
+  SystemState OutState = *SysState;
+
+  // 1. Static Physics
+  unsigned BaseLatency = computeBaseLatency(MI, OutState);
+
+  // 2. Dynamic Penalties
+  unsigned Penalties = computeDynamicPenalties(MI);
+
+  // Update State
+  OutState.advanceClock(BaseLatency + Penalties);
+
+  return std::make_unique<SystemState>(OutState);
+}
+
+std::unique_ptr<AbstractState> PipelineAnalysis::join(const AbstractState &S1,
+                                                      const AbstractState &S2) {
+  const auto *State1 = dynamic_cast<const SystemState *>(&S1);
+  const auto *State2 = dynamic_cast<const SystemState *>(&S2);
+
+  if (!State1 || !State2) {
+    llvm_unreachable("PipelineAnalysis::join: Invalid state types");
+  }
+
+  auto Result = std::make_unique<SystemState>(*State1);
+  Result->join(*State2);
+  return Result;
+}
+
+bool PipelineAnalysis::isLessOrEqual(const AbstractState &S1,
+                                     const AbstractState &S2) const {
+  const auto *State1 = dynamic_cast<const SystemState *>(&S1);
+  const auto *State2 = dynamic_cast<const SystemState *>(&S2);
+
+  if (!State1 || !State2) {
+    llvm_unreachable("PipelineAnalysis::isLessOrEqual: Invalid state types");
+  }
+
+  // For WCET analysis with max-based join:
+  // S1 <= S2 iff S1.CycleCount <= S2.CycleCount and all resources in S1 <= S2
+  if (State1->CycleCount > State2->CycleCount)
+    return false;
+
+  for (const auto &Pair : State1->ResourceAvailability) {
+    auto It = State2->ResourceAvailability.find(Pair.first);
+    if (It == State2->ResourceAvailability.end()) {
+      // S2 doesn't have this resource, so S1 has more info
+      return false;
+    }
+    if (Pair.second > It->second) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Legacy interface for backward compatibility
 
 SystemState PipelineAnalysis::getEntryState() const {
   SystemState State;
@@ -27,8 +101,8 @@ SystemState PipelineAnalysis::getBottomState() const {
   return State;
 }
 
-SystemState PipelineAnalysis::transfer(const MachineInstr &MI,
-                                       SystemState InState) {
+SystemState PipelineAnalysis::transferState(const MachineInstr &MI,
+                                            SystemState InState) {
   SystemState OutState = InState;
 
   // 1. Static Physics

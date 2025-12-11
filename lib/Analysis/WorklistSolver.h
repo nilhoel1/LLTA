@@ -1,5 +1,4 @@
-//===-- llta/Analysis/WorklistSolver.h - Generic Worklist Solver -*- C++
-//-*-===//
+//===-- Analysis/WorklistSolver.h - Generic Worklist Solver -*- C++ -*-===//
 //
 // Part of the LLTA Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,8 +17,8 @@
 #ifndef LLTA_ANALYSIS_WORKLISTSOLVER_H
 #define LLTA_ANALYSIS_WORKLISTSOLVER_H
 
-#include "llta/Analysis/AbstractAnalysis.h"
-#include "llta/Analysis/AbstractState.h"
+#include "AbstractAnalysis.h"
+#include "AbstractState.h"
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -42,12 +41,6 @@ class WorklistSolver {
   const llvm::MachineFunction &MF;
 
   /// Map storing the IN-state for each basic block.
-  /// We use std::map here because we need stable storage for unique_ptrs
-  /// equivalent to DenseMap<MBB*, unique_ptr<AbstractState>> but simplified for
-  /// students. Note: User requirements suggested DenseMap or std::map. DenseMap
-  /// with non-copyable values (unique_ptr) can be tricky, so std::map or
-  /// DenseMap<*, State*> is safer. Given unique_ptr ownership requirement,
-  /// we'll store ownership here.
   std::map<const llvm::MachineBasicBlock *, std::unique_ptr<AbstractState>>
       BlockStates;
 
@@ -58,9 +51,6 @@ public:
   WorklistSolver(const llvm::MachineFunction &MF, AbstractAnalysis &Analysis);
 
   /// \brief Executes the worklist algorithm to compute the fixpoint.
-  ///
-  /// This method initializes the worklist with the entry block and iteratively
-  /// processes blocks until the worklist is empty (convergence).
   void solve();
 };
 
