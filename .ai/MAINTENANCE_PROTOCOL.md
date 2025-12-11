@@ -16,7 +16,7 @@ End every coding response with a checklist confirming you updated these files.
 
 ## Testing Standards
 Required after every implementation task:
-1. **Build LLTA**: Run `./config.sh build`
+1. **Build LLTA**: Run `./config.sh configure` and `./config.sh build`
 2. **Run Regression Test**: Execute `python3 tests/regression_test.py`
 3. **Verify Result**:
    - **GREEN**: Ideal. Matches baseline.
