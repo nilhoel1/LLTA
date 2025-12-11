@@ -2,7 +2,6 @@
 #define LLTA_ANALYSIS_SYSTEMSTATE_H
 
 #include "llta/Analysis/AbstractState.h"
-#include "llvm/ADT/SmallVector.h"
 #include <map>
 #include <memory>
 

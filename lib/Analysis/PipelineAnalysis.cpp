@@ -1,17 +1,15 @@
 #include "Analysis/PipelineAnalysis.h"
 #include "Analysis/Targets/MSP430Latency.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/Support/ErrorHandling.h"
-
-#include <algorithm>
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
 namespace llta {
 
-PipelineAnalysis::PipelineAnalysis(const TargetSubtargetInfo &STI)
-    : SchedModel(STI.getSchedModel()) {
+PipelineAnalysis::PipelineAnalysis(const TargetSubtargetInfo &STI) {
+  SchedModel.init(&STI);
   // Initialize strategies (defaults for now)
   // ICache = std::make_unique<LRUCache>(...);
 }
