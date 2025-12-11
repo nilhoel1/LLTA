@@ -27,8 +27,7 @@
         - `SystemState.cpp`: Lattice element implementation.
         - `HardwareStrategies.cpp`: Cache and BP models.
 - **`include/`**: Header files for the libraries.
-    - `include/llta/Analysis/`: Headers for `SystemState`, `PipelineAnalysis`, `HardwareStrategies`.
-    - `include/llta/Solver/`: Header for `WorklistSolver`.
+    - `include/Analysis/`: Headers for abstract base classes (`AbstractState`, `AbstractAnalysis`, `WorklistSolver`) and concrete implementations (`SystemState`, `PipelineAnalysis`, `HardwareStrategies`).
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.
 - **`build/`**: Build artifacts (generated).

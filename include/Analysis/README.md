@@ -20,10 +20,10 @@ graph TD
     subgraph "Hybrid Logic Layer"
         Domain --> |1. Base Latency| SchedModel
         Domain --> |2. Dynamic Penalties| Strat[Hardware Strategies]
-        
+
         Strat --> Cache[Cache Model C++]
         Strat --> BP[Branch Predictor C++]
-        
+
         State --> |Context| Strat
     end
 ```
@@ -53,7 +53,7 @@ We will implement this in **four distinct modules** to ensure modularity.
 
 Here are the concrete contracts your team needs to implement.
 
-#### A. `include/llta/Analysis/HardwareStrategies.h`
+#### A. `include/Analysis/HardwareStrategies.h`
 
 *Defines the interface for dynamic hardware components (Cache, BP).*
 
@@ -106,7 +106,7 @@ public:
 #endif // LLTA_ANALYSIS_HARDWARESTRATEGIES_H
 ```
 
-#### B. `include/llta/Analysis/SystemState.h`
+#### B. `include/Analysis/SystemState.h`
 
 *Defines the "Lattice" element that flows through the graph.*
 
@@ -133,7 +133,7 @@ public:
   /// Ideally, use a PImpl idiom or pointer to a State structure to keep this lightweight.
 
   bool operator==(const SystemState &Other) const {
-    return CycleCount == Other.CycleCount && 
+    return CycleCount == Other.CycleCount &&
            ResourceAvailability == Other.ResourceAvailability;
   }
 
@@ -142,7 +142,7 @@ public:
   /// The Join operator (Lattice Union).
   /// Merges state from predecessor blocks (e.g., takes max CycleCount).
   void join(const SystemState &Other);
-  
+
   /// Helper to advance time (pipeline stall or instruction execution).
   void advanceClock(uint64_t Cycles);
 };
@@ -152,7 +152,7 @@ public:
 #endif
 ```
 
-#### C. `include/llta/Analysis/PipelineAnalysis.h`
+#### C. `include/Analysis/PipelineAnalysis.h`
 
 *The Core Domain Logic.*
 
@@ -160,8 +160,8 @@ public:
 #ifndef LLTA_ANALYSIS_PIPELINEANALYSIS_H
 #define LLTA_ANALYSIS_PIPELINEANALYSIS_H
 
-#include "llta/Analysis/SystemState.h"
-#include "llta/Analysis/HardwareStrategies.h"
+#include "Analysis/SystemState.h"
+#include "Analysis/HardwareStrategies.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
@@ -169,7 +169,7 @@ namespace llta {
 
 class PipelineAnalysis {
   llvm::TargetSchedModel SchedModel;
-  
+
   // Owned strategies (populated via factory or config)
   std::unique_ptr<CacheStrategy> ICache;
   std::unique_ptr<BranchPredictorStrategy> BPredictor;
@@ -187,7 +187,7 @@ public:
 private:
   /// Queries LLVM SchedModel for structural hazards and basic latency.
   unsigned computeBaseLatency(const llvm::MachineInstr &MI, SystemState &State);
-  
+
   /// Queries strategies for dynamic penalties (Cache Miss, Branch Flush).
   unsigned computeDynamicPenalties(const llvm::MachineInstr &MI);
 };
@@ -197,7 +197,7 @@ private:
 #endif
 ```
 
-#### D. `include/llta/Solver/WorklistSolver.h`
+#### D. `include/Analysis/WorklistSolver.h`
 
 *The simplified, reusable solver.*
 
@@ -244,7 +244,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 1: The Solver Infrastructure**
     - **Target:** `lib/Analysis/WorklistSolver.cpp`
-    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/llta/Solver/WorklistSolver.h`
+    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/Analysis/WorklistSolver.h`
     - **AI Prompt:**
       > **System:** Act as a Senior Compiler Engineer.
       > **Task:** Implement the `solve` method for the `WorklistSolver` class in `WorklistSolver.cpp`.
@@ -257,7 +257,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 2: The System State (Lattice)**
     - **Target:** `lib/Analysis/SystemState.cpp`
-    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/llta/Analysis/SystemState.h`
+    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/Analysis/SystemState.h`
     - **AI Prompt:**
       > **System:** Act as a Senior Systems Programmer.
       > **Task:** Implement the `join` and `advanceClock` methods for `SystemState` in `lib/Analysis/SystemState.cpp`.
@@ -269,7 +269,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 3: The Pipeline Physics**
     - **Target:** `lib/Analysis/PipelineAnalysis.cpp`
-    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/llta/Analysis/PipelineAnalysis.h`
+    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/Analysis/PipelineAnalysis.h`
     - **AI Prompt:**
       > **System:** Act as an LLVM Backend Developer.
       > **Task:** Implement `PipelineAnalysis::computeBaseLatency`.
@@ -281,7 +281,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 4: The Strategies (Hybrid Plugins)**
     - **Target:** `lib/Analysis/HardwareStrategies.cpp`
-    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/llta/Analysis/HardwareStrategies.h`
+    - **Context:** `.ai/style.md`, `.ai/architecture.md`, `include/Analysis/HardwareStrategies.h`
     - **AI Prompt:**
       > **System:** Act as a Software Architect.
       > **Task:** Implement the `LRUCache` and `AlwaysMissCache` strategies.
@@ -306,5 +306,4 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
       > 5. Output the result as defined in the project's success criteria.
 ### Next Step for User
 
-Start by creating the folder structure `include/llta/Analysis` and `include/llta/Solver`. Copy the header files above. Then, run the **Step 1** prompt to generate your solver core.\
-
+The folder structure `include/Analysis` contains all header files. Then, run the **Step 1** prompt to generate your solver core.\

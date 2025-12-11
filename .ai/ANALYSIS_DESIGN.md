@@ -20,14 +20,14 @@ graph TD
     subgraph "Concrete Implementation"
         Analysis -.-> |Implements| Pipeline[PipelineAnalysis]
         State -.-> |Implements| SysState[SystemState]
-        
+
         Pipeline --> |1. Base Latency| SchedModel
         Pipeline -.-> |Fallback| MSP430[MSP430 Latency Helper]
         Pipeline --> |2. Dynamic Penalties| Strat[Hardware Strategies]
-        
+
         Strat --> Cache[Cache Model C++]
         Strat --> BP[Branch Predictor C++]
-        
+
         SysState --> |Context| Strat
     end
 ```
@@ -57,7 +57,7 @@ We will implement this in **four distinct modules** to ensure modularity.
 
 Here are the concrete contracts your team needs to implement.
 
-#### A. `include/llta/Analysis/AbstractState.h`
+#### A. `include/Analysis/AbstractState.h`
 
 *Abstract base class for analysis states (Lattice elements).*
 
@@ -90,7 +90,7 @@ public:
 #endif // LLTA_ANALYSIS_ABSTRACTSTATE_H
 ```
 
-#### B. `include/llta/Analysis/AbstractAnalysis.h`
+#### B. `include/Analysis/AbstractAnalysis.h`
 
 *Abstract base class for defining the analysis logic (Transfer functions & Join).*
 
@@ -98,7 +98,7 @@ public:
 #ifndef LLTA_ANALYSIS_ABSTRACTANALYSIS_H
 #define LLTA_ANALYSIS_ABSTRACTANALYSIS_H
 
-#include "llta/Analysis/AbstractState.h"
+#include "Analysis/AbstractState.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include <memory>
 
@@ -111,12 +111,12 @@ public:
 
   /// The Transfer function: State_Out = f(State_In, Instruction).
   /// Returns a new state representing the effect of executing MI on FromState.
-  virtual std::unique_ptr<AbstractState> 
+  virtual std::unique_ptr<AbstractState>
   transfer(const AbstractState &FromState, const llvm::MachineInstr &MI) = 0;
 
   /// The Join operator: Merges two states (e.g., control flow checks).
   /// Returns a new state representing the union/merge of S1 and S2.
-  virtual std::unique_ptr<AbstractState> 
+  virtual std::unique_ptr<AbstractState>
   join(const AbstractState &S1, const AbstractState &S2) = 0;
 
   /// Returns the initial state for the analysis entry point.
@@ -131,7 +131,7 @@ public:
 #endif // LLTA_ANALYSIS_ABSTRACTANALYSIS_H
 ```
 
-#### C. `include/llta/Analysis/WorklistSolver.h`
+#### C. `include/Analysis/WorklistSolver.h`
 
 *The generic solver algorithm using runtime polymorphism.*
 
@@ -139,8 +139,8 @@ public:
 #ifndef LLTA_ANALYSIS_WORKLISTSOLVER_H
 #define LLTA_ANALYSIS_WORKLISTSOLVER_H
 
-#include "llta/Analysis/AbstractAnalysis.h"
-#include "llta/Analysis/AbstractState.h"
+#include "Analysis/AbstractAnalysis.h"
+#include "Analysis/AbstractState.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/ADT/DenseMap.h"
@@ -153,7 +153,7 @@ namespace llta {
 class WorklistSolver {
   AbstractAnalysis &Analysis;
   const llvm::MachineFunction &MF;
-  
+
   // Mapping from Basic Block to its entry state.
   std::map<const llvm::MachineBasicBlock *, std::unique_ptr<AbstractState>> BlockStates;
 
@@ -177,7 +177,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
 
 - [ ] **Step 1: The Solver Infrastructure**
     - **Target:** `lib/Analysis/WorklistSolver.cpp`
-    - **Context:** `include/llta/Analysis/WorklistSolver.h`
+    - **Context:** `include/Analysis/WorklistSolver.h`
     - **AI Prompt:**
       > **System:** Act as a Senior C++ Developer.
       > **Task:** Implement the `solve` method for the `WorklistSolver` class in `lib/Analysis/WorklistSolver.cpp`.
@@ -190,8 +190,8 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
       > 3. Use `std::map<const MachineBasicBlock*, unique_ptr<AbstractState>>` as defined in the header.
 
 - [ ] **Step 2: The Concrete Systems State**
-    - **Target:** `include/llta/Analysis/SystemState.h`, `lib/Analysis/SystemState.cpp`
-    - **Context:** `include/llta/Analysis/AbstractState.h`
+    - **Target:** `include/Analysis/SystemState.h`, `lib/Analysis/SystemState.cpp`
+    - **Context:** `include/Analysis/AbstractState.h`
     - **AI Prompt:**
       > **System:** Act as a Senior C++ Developer.
       > **Task:** Implement `SystemState` which inherits from `AbstractState`.
@@ -202,8 +202,8 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
       > 4. Ensure `clone` returns a deep copy using `std::make_unique`.
 
 - [ ] **Step 3: The Concrete Analysis Domain**
-    - **Target:** `include/llta/Analysis/PipelineAnalysis.h`, `lib/Analysis/PipelineAnalysis.cpp`
-    - **Context:** `include/llta/Analysis/AbstractAnalysis.h`, `include/Analysis/Targets/MSP430Latency.h`
+    - **Target:** `include/Analysis/PipelineAnalysis.h`, `lib/Analysis/PipelineAnalysis.cpp`
+    - **Context:** `include/Analysis/AbstractAnalysis.h`, `include/Analysis/Targets/MSP430Latency.h`
     - **AI Prompt:**
       > **System:** Act as an LLVM Backend Developer.
       > **Task:** Implement `PipelineAnalysis` which inherits from `AbstractAnalysis`.
@@ -216,7 +216,7 @@ Use these prompts with your AI coding assistant to generate the `.cpp` files and
       > 5. Use `dynamic_cast` to safely cast `AbstractState` to `SystemState` inside methods.
 
 - [ ] **Step 4: Hardware Strategies**
-    - **Target:** `include/llta/Analysis/HardwareStrategies.h`, `lib/Analysis/HardwareStrategies.cpp`
+    - **Target:** `include/Analysis/HardwareStrategies.h`, `lib/Analysis/HardwareStrategies.cpp`
     - **Context:** `.ai/architecture.md`
     - **AI Prompt:**
       > **System:** Act as a Software Architect.
