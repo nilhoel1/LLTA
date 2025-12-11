@@ -28,15 +28,15 @@
         - `HardwareStrategies.cpp`: Cache and Branch Predictor models (LRUCache, AlwaysMissCache).
         - `Targets/MSP430Latency.cpp`: MSP430-specific instruction latency calculations.
 - **`include/`**: Header files for the libraries.
-    - `include/llta/Analysis/`: Abstract interfaces for the analysis framework.
-        - `AbstractState.h`: Abstract base class for lattice elements.
-        - `AbstractAnalysis.h`: Abstract interface for analysis logic (transfer, join).
-        - `WorklistSolver.h`: Generic worklist solver class.
-    - `include/Analysis/`: Concrete implementations.
+    - `include/Analysis/`: Concrete implementations and interfaces.
         - `SystemState.h`: Concrete system state inheriting AbstractState.
         - `PipelineAnalysis.h`: Concrete pipeline analysis inheriting AbstractAnalysis.
         - `HardwareStrategies.h`: Cache and BP strategy interfaces with factory functions.
         - `Targets/MSP430Latency.h`: MSP430 latency helper declarations.
+    - **`lib/Analysis/`**: Also contains abstract interface headers.
+        - `AbstractState.h`: Abstract base class for lattice elements.
+        - `AbstractAnalysis.h`: Abstract interface for analysis logic (transfer, join).
+        - `WorklistSolver.h`: Generic worklist solver class.
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.
 - **`build/`**: Build artifacts (generated).

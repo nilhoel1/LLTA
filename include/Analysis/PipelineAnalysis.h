@@ -3,7 +3,7 @@
 
 #include "Analysis/HardwareStrategies.h"
 #include "Analysis/SystemState.h"
-#include "llta/Analysis/AbstractAnalysis.h"
+#include "AbstractAnalysis.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 

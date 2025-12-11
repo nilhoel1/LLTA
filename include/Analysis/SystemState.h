@@ -1,7 +1,7 @@
 #ifndef LLTA_ANALYSIS_SYSTEMSTATE_H
 #define LLTA_ANALYSIS_SYSTEMSTATE_H
 
-#include "llta/Analysis/AbstractState.h"
+#include "AbstractState.h"
 #include <map>
 #include <memory>
 

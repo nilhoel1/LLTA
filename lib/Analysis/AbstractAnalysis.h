@@ -1,5 +1,4 @@
-//===-- llta/Analysis/AbstractAnalysis.h - Abstract Analysis Logic -*- C++
-//-*-===//
+//===-- Analysis/AbstractAnalysis.h - Abstract Analysis Logic -*- C++ -*-===//
 //
 // Part of the LLTA Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,7 +15,7 @@
 #ifndef LLTA_ANALYSIS_ABSTRACTANALYSIS_H
 #define LLTA_ANALYSIS_ABSTRACTANALYSIS_H
 
-#include "llta/Analysis/AbstractState.h"
+#include "AbstractState.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include <memory>
 

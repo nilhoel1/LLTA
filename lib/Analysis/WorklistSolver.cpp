@@ -8,7 +8,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "llta/Analysis/WorklistSolver.h"
+#include "WorklistSolver.h"
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
