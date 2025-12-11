@@ -12,8 +12,7 @@ public:
   ~GurobiSolver() override;
 
   ILPResult
-  solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
-            unsigned ExitNodeId,
+  solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId, unsigned ExitNodeId,
             const std::map<unsigned, unsigned> &LoopBoundMap) override;
 
   std::string getName() const override { return "Gurobi"; }

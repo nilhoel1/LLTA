@@ -1,4 +1,5 @@
 #include "MIRPasses/FillMuGraphPass.h"
+#include "RTTargets/ProgramGraph.h"
 #include "Utility/Options.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -74,7 +75,7 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
       IsEntry = true;
   }
 
-  TAR.MASG.fillMuGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap, MLI);
+  TAR.MASG.fillGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap, MLI);
 
   // Check if this is the last function to finalize
   bool IsLast = false;

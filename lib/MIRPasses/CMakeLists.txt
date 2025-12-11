@@ -11,5 +11,5 @@ add_llvm_library(lltaMPasses
   CallSplitterPass.cpp
 
   DEPENDS LLVMAnalysis LLVMCodeGen LLVMCore LLVMSupport LLVMTarget
-  LINK_LIBS TimingAnalysisBase lltaRTTargets lltaUtility lltaILP
+  LINK_LIBS TimingAnalysisBase lltaRTTargets lltaUtility lltaILP lltaAnalysis
 )

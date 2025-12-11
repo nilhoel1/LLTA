@@ -1,7 +1,7 @@
 #ifndef ILP_SOLVER_H
 #define ILP_SOLVER_H
 
-#include "RTTargets/MuArchStateGraph.h"
+#include "RTTargets/ProgramGraph.h"
 #include <map>
 #include <memory>
 #include <string>
@@ -33,8 +33,7 @@ public:
   /// @param LoopBoundMap Map from loop header node IDs to their upper bounds
   /// @return The result of the ILP solve operation
   virtual ILPResult
-  solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
-            unsigned ExitNodeId,
+  solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId, unsigned ExitNodeId,
             const std::map<unsigned, unsigned> &LoopBoundMap) = 0;
 
   /// Get the name of the solver

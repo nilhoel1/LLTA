@@ -1,10 +1,11 @@
 #include "MIRPasses/PathAnalysisPass.h"
+#include "ILP/AbstractGurobiSolver.h"
+#include "ILP/AbstractHighsSolver.h"
 #include "ILP/ILPSolver.h"
 #include "TimingAnalysisResults.h"
 #include "Utility/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
@@ -41,7 +42,7 @@ char PathAnalysisPass::ID = 0;
  * @param TAR TimingAnalysisResults reference
  */
 PathAnalysisPass::PathAnalysisPass(TimingAnalysisResults &TAR)
-    : MachineFunctionPass(ID), TAR(TAR) {}
+    : MachineFunctionPass(ID), TAR(TAR), AnalysisWorker(Pipeline, ASG) {}
 
 Function *PathAnalysisPass::getStartingFunction(CallGraph &CG) {
   // We assume that the Function with the minimal number of References might be
@@ -160,12 +161,80 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 
   std::map<unsigned, unsigned> EmptyLoopBoundMap; // Not used anymore
 
-  // Handle "all" option - run all available solvers and compare
-  if (SolverType == ILPSolverType::All) {
-    outs() << "\n=== Running all available ILP solvers for comparison ===\n";
+  // Declare Result outside the if/else block so it's accessible later
+  ILPResult Result;
 
-    struct SolverResult {
-      std::string Name;
+  // Handle "all" option - the full comparison table is printed after abstract
+  // analysis
+  if (SolverType == ILPSolverType::All) {
+    // Just mark success for now, unified table will be printed in abstract
+    // analysis section
+    Result.Success = true;
+    Result.ObjectiveValue = 0; // Will be set from unified table
+  } else {
+    // Single solver mode
+    auto Solver = createILPSolver(SolverType);
+    if (!Solver) {
+      outs() << "Error: No ILP solver available. Cannot compute WCET.\n";
+      return false;
+    }
+
+    outs() << "Using ILP solver: " << Solver->getName() << "\n";
+
+    // Solve the ILP (loop bounds are read from nodes directly, map not used)
+    outs() << "\nSolving WCET ILP...\n";
+    Result =
+        Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
+
+    // Report results
+    outs() << "\n=== WCET Analysis Results ===\n";
+    outs() << "Status: " << Result.StatusMessage << "\n";
+
+    if (Result.Success) {
+      outs() << "WCET (worst-case execution time): "
+             << static_cast<unsigned>(Result.ObjectiveValue) << " cycles\n";
+
+      if (DebugPrints) {
+        outs() << "\nNode execution counts:\n";
+        for (const auto &[NodeId, Count] : Result.NodeExecutionCounts) {
+          if (Count > 0) {
+            const Node &N = Nodes.at(NodeId);
+            outs() << "  Node " << NodeId << " (" << N.Name
+                   << "): " << static_cast<unsigned>(Count) << " times, "
+                   << N.getState().getUpperBoundCycles() << " cycles/exec\n";
+          }
+        }
+
+        if (!Result.EdgeExecutionCounts.empty()) {
+          outs() << "\nEdge execution counts:\n";
+          for (const auto &[Edge, Count] : Result.EdgeExecutionCounts) {
+            if (Count > 0) {
+              outs() << "  Edge (" << Edge.first << " -> " << Edge.second
+                     << "): " << static_cast<unsigned>(Count) << " times\n";
+            }
+          }
+        }
+      }
+
+    } else {
+      outs() << "Failed to compute WCET.\n";
+      return false;
+    }
+  }
+
+  // --- Abstract Analysis Verification & Comparison ---
+  outs() << "\n=== Abstract Analysis Verification ===\n";
+
+  // Run Abstract Analysis on the pre-built ProgramGraph (MASG)
+  // This calculates the AbstractStateGraph nodes/edges/costs
+  AnalysisWorker.run(TAR.MASG);
+
+  // Check if we should run all solvers or just one
+  if (SolverType == ILPSolverType::All) {
+    // Unified result structure for both Legacy and Abstract solvers
+    struct UnifiedSolverResult {
+      std::string Type;   // "Legacy" or "Abstract"
+      std::string Solver; // "Gurobi" or "HiGHS"
       bool Available;
       bool Success;
       double WCET;
@@ -173,160 +242,231 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       std::string Status;
     };
 
-    std::vector<SolverResult> Results;
+    std::vector<UnifiedSolverResult> AllResults;
 
-    // Try Gurobi
+    // Collect Legacy results (already computed above)
+    // We need to re-run them here with timing
 #ifdef ENABLE_GUROBI
     {
       auto Solver = std::make_unique<GurobiSolver>();
-      SolverResult SR;
-      SR.Name = "Gurobi";
+      UnifiedSolverResult SR;
+      SR.Type = "Legacy";
+      SR.Solver = "Gurobi";
       SR.Available = Solver->isAvailable();
 
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
-        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
-                                             EmptyLoopBoundMap);
+        ILPResult Res = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
+                                          EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
 
-        SR.Success = Result.Success;
-        SR.WCET = Result.ObjectiveValue;
+        SR.Success = Res.Success;
+        SR.WCET = Res.ObjectiveValue;
         SR.SolveTime =
             std::chrono::duration<double, std::milli>(EndTime - StartTime)
                 .count();
-        SR.Status = Result.StatusMessage;
+        SR.Status = Res.Success ? "Optimal" : "Failed";
       } else {
         SR.Success = false;
         SR.WCET = 0.0;
         SR.SolveTime = 0.0;
-        SR.Status = "Not available (no license)";
+        SR.Status = "No license";
       }
-      Results.push_back(SR);
+      AllResults.push_back(SR);
     }
 #endif
 
-    // Try HiGHS
 #ifdef ENABLE_HIGHS
     {
       auto Solver = std::make_unique<HighsSolver>();
-      SolverResult SR;
-      SR.Name = "HiGHS";
+      UnifiedSolverResult SR;
+      SR.Type = "Legacy";
+      SR.Solver = "HiGHS";
       SR.Available = Solver->isAvailable();
 
       if (SR.Available) {
         auto StartTime = std::chrono::high_resolution_clock::now();
-        ILPResult Result = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
-                                             EmptyLoopBoundMap);
+        ILPResult Res = Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId,
+                                          EmptyLoopBoundMap);
         auto EndTime = std::chrono::high_resolution_clock::now();
 
-        SR.Success = Result.Success;
-        SR.WCET = Result.ObjectiveValue;
+        SR.Success = Res.Success;
+        SR.WCET = Res.ObjectiveValue;
         SR.SolveTime =
             std::chrono::duration<double, std::milli>(EndTime - StartTime)
                 .count();
-        SR.Status = Result.StatusMessage;
+        SR.Status = Res.Success ? "Optimal" : "Failed";
       } else {
         SR.Success = false;
         SR.WCET = 0.0;
         SR.SolveTime = 0.0;
         SR.Status = "Not available";
       }
-      Results.push_back(SR);
+      AllResults.push_back(SR);
     }
 #endif
 
-    // Print comparison table
-    outs() << "\n=== Solver Comparison Table ===\n";
-    outs() << "+-----------+------------+---------+-------------+--------------"
-              "---+---------------------+\n";
-    outs() << "| Solver    | Available  | Success | WCET (cyc)  | Time (ms)    "
-              "   | Status              |\n";
-    outs() << "+-----------+------------+---------+-------------+--------------"
-              "---+---------------------+\n";
+    // Run Abstract solvers with timing
+#ifdef ENABLE_GUROBI
+    {
+      auto Solver = std::make_unique<AbstractGurobiSolver>();
+      UnifiedSolverResult SR;
+      SR.Type = "Abstract";
+      SR.Solver = "Gurobi";
+      SR.Available = true;
 
-    for (const auto &SR : Results) {
-      outs() << "| " << format("%-9s", SR.Name.c_str());
+      auto StartTime = std::chrono::high_resolution_clock::now();
+      auto Res = Solver->solveWCET(AnalysisWorker.getGraph());
+      auto EndTime = std::chrono::high_resolution_clock::now();
+
+      SR.Success = (Res.WCET > 0);
+      SR.WCET = Res.WCET;
+      SR.SolveTime =
+          std::chrono::duration<double, std::milli>(EndTime - StartTime)
+              .count();
+      SR.Status = SR.Success ? "Optimal" : "Failed";
+      AllResults.push_back(SR);
+    }
+#endif
+
+#ifdef ENABLE_HIGHS
+    {
+      auto Solver = std::make_unique<AbstractHighsSolver>();
+      UnifiedSolverResult SR;
+      SR.Type = "Abstract";
+      SR.Solver = "HiGHS";
+      SR.Available = true;
+
+      auto StartTime = std::chrono::high_resolution_clock::now();
+      auto Res = Solver->solveWCET(AnalysisWorker.getGraph());
+      auto EndTime = std::chrono::high_resolution_clock::now();
+
+      SR.Success = (Res.WCET > 0);
+      SR.WCET = Res.WCET;
+      SR.SolveTime =
+          std::chrono::duration<double, std::milli>(EndTime - StartTime)
+              .count();
+      SR.Status = SR.Success ? "Optimal" : "Failed";
+      AllResults.push_back(SR);
+    }
+#endif
+
+    // Print unified comparison table
+    outs() << "\n=== Unified Solver Comparison Table ===\n";
+    outs() << "+----------+-----------+------------+---------+-------------+---"
+              "-------------+\n";
+    outs() << "| Type     | Solver    | Available  | Success | WCET (cyc)  | "
+              "Time (ms)      |\n";
+    outs() << "+----------+-----------+------------+---------+-------------+---"
+              "-------------+\n";
+
+    for (const auto &SR : AllResults) {
+      outs() << "| " << format("%-8s", SR.Type.c_str());
+      outs() << " | " << format("%-9s", SR.Solver.c_str());
       outs() << " | " << format("%-10s", SR.Available ? "Yes" : "No");
       outs() << " | " << format("%-7s", SR.Success ? "Yes" : "No");
       outs() << " | " << format("%11.0f", SR.WCET);
-      outs() << " | " << format("%15.3f", SR.SolveTime);
-      outs() << " | " << format("%-19s", SR.Status.substr(0, 19).c_str());
+      outs() << " | " << format("%14.3f", SR.SolveTime);
       outs() << " |\n";
     }
 
-    outs() << "+-----------+------------+---------+-------------+--------------"
-              "---+---------------------+\n";
+    outs() << "+----------+-----------+------------+---------+-------------+---"
+              "-------------+\n";
 
-    // Find fastest successful solver
-    double FastestTime = std::numeric_limits<double>::max();
-    std::string FastestSolver;
-    bool AnySuccess = false;
+    // Find fastest successful solver for each type
+    double FastestLegacy = std::numeric_limits<double>::max();
+    double FastestAbstract = std::numeric_limits<double>::max();
+    std::string FastestLegacySolver, FastestAbstractSolver;
 
-    for (const auto &SR : Results) {
+    for (const auto &SR : AllResults) {
       if (SR.Available && SR.Success) {
-        AnySuccess = true;
-        if (SR.SolveTime < FastestTime) {
-          FastestTime = SR.SolveTime;
-          FastestSolver = SR.Name;
+        if (SR.Type == "Legacy" && SR.SolveTime < FastestLegacy) {
+          FastestLegacy = SR.SolveTime;
+          FastestLegacySolver = SR.Solver;
+        }
+        if (SR.Type == "Abstract" && SR.SolveTime < FastestAbstract) {
+          FastestAbstract = SR.SolveTime;
+          FastestAbstractSolver = SR.Solver;
         }
       }
     }
 
-    if (AnySuccess) {
-      outs() << "\nFastest solver: " << FastestSolver << " ("
-             << format("%.3f", FastestTime) << " ms)\n";
-    }
+    outs() << "\nFastest Legacy solver:   " << FastestLegacySolver << " ("
+           << format("%.3f", FastestLegacy) << " ms)\n";
+    outs() << "Fastest Abstract solver: " << FastestAbstractSolver << " ("
+           << format("%.3f", FastestAbstract) << " ms)\n";
 
-    return AnySuccess;
-  }
-
-  // Single solver mode
-  auto Solver = createILPSolver(SolverType);
-  if (!Solver) {
-    outs() << "Error: No ILP solver available. Cannot compute WCET.\n";
-    return false;
-  }
-
-  outs() << "Using ILP solver: " << Solver->getName() << "\n";
-
-  // Solve the ILP (loop bounds are read from nodes directly, map not used)
-  outs() << "\nSolving WCET ILP...\n";
-  ILPResult Result =
-      Solver->solveWCET(TAR.MASG, EntryNodeId, ExitNodeId, EmptyLoopBoundMap);
-
-  // Report results
-  outs() << "\n=== WCET Analysis Results ===\n";
-  outs() << "Status: " << Result.StatusMessage << "\n";
-
-  if (Result.Success) {
-    outs() << "WCET (worst-case execution time): "
-           << static_cast<unsigned>(Result.ObjectiveValue) << " cycles\n";
-
-    if (DebugPrints) {
-      outs() << "\nNode execution counts:\n";
-      for (const auto &[NodeId, Count] : Result.NodeExecutionCounts) {
-        if (Count > 0) {
-          const Node &N = Nodes.at(NodeId);
-          outs() << "  Node " << NodeId << " (" << N.Name
-                 << "): " << static_cast<unsigned>(Count) << " times, "
-                 << N.getState().getUpperBoundCycles() << " cycles/exec\n";
-        }
-      }
-
-      if (!Result.EdgeExecutionCounts.empty()) {
-        outs() << "\nEdge execution counts:\n";
-        for (const auto &[Edge, Count] : Result.EdgeExecutionCounts) {
-          if (Count > 0) {
-            outs() << "  Edge (" << Edge.first << " -> " << Edge.second
-                   << "): " << static_cast<unsigned>(Count) << " times\n";
-          }
+    // Check if all WCETs match
+    bool AllMatch = true;
+    double RefWCET = 0;
+    for (const auto &SR : AllResults) {
+      if (SR.Success) {
+        if (RefWCET == 0) {
+          RefWCET = SR.WCET;
+        } else if (std::abs(SR.WCET - RefWCET) > 1e-6) {
+          AllMatch = false;
+          break;
         }
       }
     }
 
-    return true;
+    if (AllMatch && RefWCET > 0) {
+      outs() << "\n[SUCCESS] All solvers agree on WCET: "
+             << static_cast<unsigned>(RefWCET) << " cycles\n";
+    } else {
+      outs() << "\n[WARNING] Solvers produced different WCET values!\n";
+    }
+  } else {
+    // Single solver mode for abstract analysis
+    std::unique_ptr<AbstractILPSolver> AbstractSolver;
+    std::string SolverName;
+
+    if (SolverType == ILPSolverType::Gurobi) {
+#ifdef ENABLE_GUROBI
+      AbstractSolver = std::make_unique<AbstractGurobiSolver>();
+      SolverName = "Gurobi";
+#else
+      outs() << "Gurobi not available, falling back to HiGHS\n";
+#endif
+    }
+
+    if (!AbstractSolver && (SolverType == ILPSolverType::HiGHS ||
+                            SolverType == ILPSolverType::Auto)) {
+#ifdef ENABLE_HIGHS
+      AbstractSolver = std::make_unique<AbstractHighsSolver>();
+      SolverName = "HiGHS";
+#endif
+    }
+
+    if (!AbstractSolver) {
+#ifdef ENABLE_GUROBI
+      AbstractSolver = std::make_unique<AbstractGurobiSolver>();
+      SolverName = "Gurobi";
+#endif
+    }
+
+    if (AbstractSolver) {
+      outs() << "Using Abstract ILP solver: " << SolverName << "\n";
+      auto AbstractResult =
+          AbstractSolver->solveWCET(AnalysisWorker.getGraph());
+      outs() << "New Abstract Analysis WCET: "
+             << static_cast<unsigned>(AbstractResult.WCET) << " cycles\n";
+      outs() << "Legacy Analysis WCET:       "
+             << static_cast<unsigned>(Result.ObjectiveValue) << " cycles\n";
+
+      if (Result.Success) {
+        double Diff = std::abs(AbstractResult.WCET - Result.ObjectiveValue);
+        if (Diff < 1e-6) {
+          outs() << "[SUCCESS] WCET matches!\n";
+        } else {
+          outs() << "[DIFFERENCE] WCET differs by " << Diff << " cycles\n";
+        }
+      }
+    } else {
+      outs() << "No abstract ILP solver available.\n";
+    }
   }
-  outs() << "Failed to compute WCET.\n";
+
   return false;
 }
 
@@ -337,42 +477,8 @@ bool PathAnalysisPass::doFinalization(Module &M) {
  * @return true if the function was modified (always false for analysis)
  */
 bool PathAnalysisPass::runOnMachineFunction(MachineFunction &F) {
-  if (StartFunctionName != "")
-    FoundStartingFunction = true;
-  if (!CG) {
-    CG = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
-  }
-  if (!FoundStartingFunction) {
-    StartingFunction = getStartingFunction(*CG);
-    // Get the starting function if the StartingFunctionName is empty
-    if (!StartingFunction) {
-      outs() << "No StartingFunction found\n";
-    }
-    assert(StartingFunction && "StartingFunction is null");
-  }
-  // Only continue when StartFunction is not set as parameter.
-  if (!(&F.getFunction() == StartingFunction) && StartFunctionName == "") {
-    return false;
-  }
-  if (StartFunctionName != F.getName() && StartFunctionName != "") {
-    return false;
-  }
-  // outs() << "Starting Function: " << F.getName() << "\n";
-  // outs() << "Should Be: " << StartFunctionName << "\n";
-
-  // Get the MachineLoopInfo analysis results
-  auto &MLWP = getAnalysis<MachineLoopInfoWrapperPass>();
-  (void)MLWP; // Suppress unused variable warning
-
-  // Get the Latency analysis results
-  auto MBBLatencyMap = TAR.getMBBLatencyMap();
-
-  // Print Loop Bounds
-  // outs() << "Aggregated Loop Bounds:\n";
-  // for (auto const &[MBB, Bound] : TAR.LoopBoundMap) {
-  //   outs() << "MBB: " << MBB->getName() << " Bound: " << Bound << "\n";
-  // }
-
+  // We do not run analysis per-function anymore.
+  // We wait until doFinalization where the full ProgramGraph (MASG) is ready.
   return false;
 }
 

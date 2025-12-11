@@ -31,7 +31,7 @@ GurobiSolver::~GurobiSolver() = default;
 bool GurobiSolver::isAvailable() const { return HasLicense; }
 
 ILPResult
-GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
+GurobiSolver::solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId,
                         unsigned ExitNodeId,
                         const std::map<unsigned, unsigned> &LoopBoundMap) {
   ILPResult Result;
@@ -129,9 +129,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
     return Result;
   }
 
-
   // Add edge variables: e_{i,j} = execution count of edge (i,j) (integer >= 0)
-  // Objective coefficient = 0 for edge variables (they don't contribute to WCET directly)
+  // Objective coefficient = 0 for edge variables (they don't contribute to WCET
+  // directly)
   std::vector<double> EdgeObj(NumEdges, 0.0);
   std::vector<double> EdgeLb(NumEdges, 0.0);
   std::vector<double> EdgeUb(NumEdges, GRB_INFINITY);
@@ -145,8 +145,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
   }
 
   // Add edge variables to model
-  Error = GRBaddvars(Model, NumEdges, 0, nullptr, nullptr, nullptr, EdgeObj.data(),
-                     EdgeLb.data(), EdgeUb.data(), EdgeVTypes.data(), EdgeNamePtrs.data());
+  Error = GRBaddvars(Model, NumEdges, 0, nullptr, nullptr, nullptr,
+                     EdgeObj.data(), EdgeLb.data(), EdgeUb.data(),
+                     EdgeVTypes.data(), EdgeNamePtrs.data());
   if (Error) {
     Result.StatusMessage = "Failed to add edge variables to Gurobi model";
     GRBfreemodel(Model);
@@ -223,8 +224,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
                            GRB_EQUAL, 0.0, ConstrName.c_str());
       if (Error) {
-        Result.StatusMessage = "Failed to add incoming flow constraint for node " +
-                               std::to_string(NodeId);
+        Result.StatusMessage =
+            "Failed to add incoming flow constraint for node " +
+            std::to_string(NodeId);
         GRBfreemodel(Model);
         GRBfreeenv(Env);
         return Result;
@@ -253,8 +255,9 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       Error = GRBaddconstr(Model, Indices.size(), Indices.data(), Coeffs.data(),
                            GRB_EQUAL, 0.0, ConstrName.c_str());
       if (Error) {
-        Result.StatusMessage = "Failed to add outgoing flow constraint for node " +
-                               std::to_string(NodeId);
+        Result.StatusMessage =
+            "Failed to add outgoing flow constraint for node " +
+            std::to_string(NodeId);
         GRBfreemodel(Model);
         GRBfreeenv(Env);
         return Result;
@@ -302,12 +305,12 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
       }
       // Clear vectors if we re-populated them
       if (BackEdgePreds.empty()) {
-         // If heuristic also failed, assume all preds are preheaders (safe default?)
-         // Or maybe we should assume all preds < NodeId are preheaders
-         PreheaderPreds.clear();
-         for (unsigned PredId : N.getPredecessors()) {
-             PreheaderPreds.push_back(PredId);
-         }
+        // If heuristic also failed, assume all preds are preheaders (safe
+        // default?) Or maybe we should assume all preds < NodeId are preheaders
+        PreheaderPreds.clear();
+        for (unsigned PredId : N.getPredecessors()) {
+          PreheaderPreds.push_back(PredId);
+        }
       }
     }
 
@@ -326,12 +329,12 @@ GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
 
         auto EdgeKey = std::make_pair(PrehId, NodeId);
         if (EdgeToVarIdx.find(EdgeKey) != EdgeToVarIdx.end()) {
-            Indices.push_back(EdgeToVarIdx[EdgeKey]);
-            Coeffs.push_back(-static_cast<double>(LoopBound));
+          Indices.push_back(EdgeToVarIdx[EdgeKey]);
+          Coeffs.push_back(-static_cast<double>(LoopBound));
         } else {
-            // Fallback to node variable if edge not found (should not happen)
-            Indices.push_back(NodeToVarIdx[PrehId]);
-            Coeffs.push_back(-static_cast<double>(LoopBound));
+          // Fallback to node variable if edge not found (should not happen)
+          Indices.push_back(NodeToVarIdx[PrehId]);
+          Coeffs.push_back(-static_cast<double>(LoopBound));
         }
       }
 

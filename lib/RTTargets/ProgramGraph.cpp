@@ -1,4 +1,4 @@
-#include "RTTargets/MuArchStateGraph.h"
+#include "RTTargets/ProgramGraph.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -81,10 +81,13 @@ bool Node::isFree() const { return Successors.empty() && Predecessors.empty(); }
 // Get a description of the Node
 std::string Node::getNodeDescr() const {
   std::string Descr = "ID: " + std::to_string(Id) + ", Name: " + Name.str() +
-         ", Cycle:" + std::to_string(State->getUpperBoundCycles());
+                      ", Cycle:" + std::to_string(State->getUpperBoundCycles());
   if (IsLoop) {
     Descr += "\\nLoop: [" + std::to_string(LowerLoopBound) + ", " +
              std::to_string(UpperLoopBound) + "]";
+  }
+  if (!State->DebugInfo.empty()) {
+    Descr += "\\n" + State->DebugInfo;
   }
   return Descr;
 }
@@ -92,19 +95,20 @@ std::string Node::getNodeDescr() const {
 // Get the architectural state of the Node
 MuArchState &Node::getState() const { return *State; }
 
-MuArchStateGraph::MuArchStateGraph() : Nodes(), NextNodeId(0) {}
+ProgramGraph::ProgramGraph() : Nodes(), NextNodeId(0) {}
 
-MuArchStateGraph::MuArchStateGraph(MuArchStateGraph &G2)
+ProgramGraph::ProgramGraph(ProgramGraph &G2)
     : Nodes(G2.Nodes), NextNodeId(G2.NextNodeId) {}
 
-MuArchStateGraph::~MuArchStateGraph() {}
+ProgramGraph::~ProgramGraph() {}
 
-unsigned MuArchStateGraph::addNode(MuArchState State, MachineBasicBlock *MBB) {
+unsigned ProgramGraph::addNode(std::unique_ptr<MuArchState> State,
+                               MachineBasicBlock *MBB) {
   unsigned CurrentId = NextNodeId;
   NextNodeId++;
   assert(NextNodeId > 0 &&
          "We used all Node ids for the state graph. Unsigned is not enough!");
-  Node Nd(CurrentId, std::make_unique<MuArchState>(State));
+  Node Nd(CurrentId, std::move(State));
   // Nd.setName(MBB->getName());
   Nodes.insert(std::make_pair(CurrentId, Nd));
   DEBUG_WITH_TYPE("ilp", dbgs() << "Adding Node with id " << CurrentId << "\n");
@@ -113,13 +117,13 @@ unsigned MuArchStateGraph::addNode(MuArchState State, MachineBasicBlock *MBB) {
   return CurrentId;
 }
 
-unsigned MuArchStateGraph::addNode(MuArchState State, MachineBasicBlock *MBB,
-                                   StringRef NodeName) {
+unsigned ProgramGraph::addNode(std::unique_ptr<MuArchState> State,
+                               MachineBasicBlock *MBB, StringRef NodeName) {
   unsigned CurrentId = NextNodeId;
   NextNodeId++;
   assert(NextNodeId > 0 &&
          "We used all Node ids for the state graph. Unsigned is not enough!");
-  Node Nd(CurrentId, std::make_unique<MuArchState>(State));
+  Node Nd(CurrentId, std::move(State));
   // Nd.setName(NodeName);
   Nodes.insert(std::make_pair(CurrentId, Nd));
   DEBUG_WITH_TYPE("ilp", dbgs() << "Adding Node with id " << CurrentId << "\n");
@@ -128,53 +132,49 @@ unsigned MuArchStateGraph::addNode(MuArchState State, MachineBasicBlock *MBB,
   return CurrentId;
 }
 
-void MuArchStateGraph::addEdge(unsigned FromNode, unsigned ToNode) {
+void ProgramGraph::addEdge(unsigned FromNode, unsigned ToNode) {
   assert(Nodes.count(FromNode) == 1 && Nodes.count(ToNode) == 1 &&
          "Tried adding an edge between non-existent Nodes.");
   Nodes.at(FromNode).addSuccessor(ToNode);
   Nodes.at(ToNode).addPredecessor(FromNode);
 }
 
-void MuArchStateGraph::removeNode(unsigned Node) {
+void ProgramGraph::removeNode(unsigned Node) {
   assert(Nodes.at(Node).isFree() &&
          "Tried to remove a Node which has an edge connected!");
   Nodes.erase(Node);
 }
 
-void MuArchStateGraph::removeEdge(unsigned FromNode, unsigned ToNode) {
+void ProgramGraph::removeEdge(unsigned FromNode, unsigned ToNode) {
   Nodes.at(FromNode).deleteSuccessor(ToNode);
   Nodes.at(ToNode).deletePredecessor(FromNode);
 }
 
-const std::set<unsigned>
-MuArchStateGraph::getPredecessors(unsigned NodeId) const {
+const std::set<unsigned> ProgramGraph::getPredecessors(unsigned NodeId) const {
   return Nodes.at(NodeId).getPredecessors();
 }
 
-const std::set<unsigned>
-MuArchStateGraph::getSuccessors(unsigned NodeId) const {
+const std::set<unsigned> ProgramGraph::getSuccessors(unsigned NodeId) const {
   return Nodes.at(NodeId).getSuccessors();
 }
 
-const std::map<unsigned, Node> &MuArchStateGraph::getNodes() const {
-  return Nodes;
-}
+const std::map<unsigned, Node> &ProgramGraph::getNodes() const { return Nodes; }
 
-bool MuArchStateGraph::isFree(unsigned Node) const {
+bool ProgramGraph::isFree(unsigned Node) const {
   return Nodes.at(Node).isFree();
 }
 
-bool MuArchStateGraph::hasEdge(unsigned FromNode, unsigned ToNode) const {
+bool ProgramGraph::hasEdge(unsigned FromNode, unsigned ToNode) const {
   return Nodes.at(FromNode).isSuccessor(ToNode);
 }
 
-void MuArchStateGraph::dump() const {
+void ProgramGraph::dump() const {
   for (const auto &Nd : Nodes) {
     errs() << Nd.second.getNodeDescr();
   }
 }
 
-bool MuArchStateGraph::dump2Dot(StringRef FileName) {
+bool ProgramGraph::dump2Dot(StringRef FileName) {
   std::error_code EC;
   raw_fd_ostream File(FileName, EC, sys::fs::OF_Text);
   if (EC) {
@@ -266,7 +266,7 @@ bool MuArchStateGraph::dump2Dot(StringRef FileName) {
   return true;
 }
 
-std::vector<unsigned> MuArchStateGraph::getNodesNotInMBBMap() const {
+std::vector<unsigned> ProgramGraph::getNodesNotInMBBMap() const {
   std::vector<unsigned> NodesNotInMap;
 
   // Create a set of all node IDs that are in MBBToNodeMap
@@ -285,7 +285,7 @@ std::vector<unsigned> MuArchStateGraph::getNodesNotInMBBMap() const {
   return NodesNotInMap;
 }
 
-bool MuArchStateGraph::fillMuGraphWithFunction(
+bool ProgramGraph::fillGraphWithFunction(
     MachineFunction &MF, bool IsEntry,
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
         &MBBLatencyMap,
@@ -299,8 +299,8 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
   unsigned int EntryNode;
 
   if (IsEntry) {
-    EntryNode = addNode(MuArchState(0, 0), nullptr);
-    ExitNode = addNode(MuArchState(0, 0), nullptr);
+    EntryNode = addNode(std::make_unique<MuArchState>(0, 0), nullptr);
+    ExitNode = addNode(std::make_unique<MuArchState>(0, 0), nullptr);
     Nodes.at(EntryNode).setName(StringRef("Entry"));
     Nodes.at(ExitNode).setName(StringRef("Exit"));
   }
@@ -313,7 +313,7 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
     //  add ti the graph as unique ptr
     auto It = MBBLatencyMap.find(&MBB);
     unsigned Latency = (It != MBBLatencyMap.end()) ? It->second : 0;
-    addNode(MuArchState(Latency, Latency), &MBB);
+    addNode(std::make_unique<MuArchState>(Latency, Latency), &MBB);
     CurrentNode = MBBToNodeMap[&MBB];
 
     // Check if this MBB is a loop header and set loop bounds
@@ -342,10 +342,10 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
     }
   }
   if (IsEntry && !ExitStateSet) {
-      addEdge(CurrentNode, ExitNode);
-      ExitStateSet = true;
+    addEdge(CurrentNode, ExitNode);
+    ExitStateSet = true;
   }
-  //assert(ExitStateSet && "At least one Return should have been found!");
+  // assert(ExitStateSet && "At least one Return should have been found!");
 
   // Fill MuArchGraph Edges
   for (auto &MBB : MF) {
@@ -373,31 +373,32 @@ bool MuArchStateGraph::fillMuGraphWithFunction(
 
   // Store Entry and Return nodes for this function
   if (!MF.empty()) {
-      FunctionToEntryNodeMap[&MF.getFunction()] = MBBToNodeMap[&*MF.begin()];
+    FunctionToEntryNodeMap[&MF.getFunction()] = MBBToNodeMap[&*MF.begin()];
   }
   for (auto &MBB : MF) {
-      if (MBB.isReturnBlock()) {
-          FunctionToReturnNodesMap[&MF.getFunction()].push_back(MBBToNodeMap[&MBB]);
-      }
-      // Capture call sites
-      for (auto &MI : MBB) {
-          if (MI.isCall()) {
-              if (MI.getOperand(0).getType() == llvm::MachineOperand::MO_GlobalAddress) {
-                  const auto *GV = MI.getOperand(0).getGlobal();
-                  const auto *Callee = dyn_cast<Function>(GV);
-                  if (Callee) {
-                      unsigned CallNode = MBBToNodeMap[&MBB];
-                      CallSites.push_back({CallNode, Callee});
-                  }
-              }
+    if (MBB.isReturnBlock()) {
+      FunctionToReturnNodesMap[&MF.getFunction()].push_back(MBBToNodeMap[&MBB]);
+    }
+    // Capture call sites
+    for (auto &MI : MBB) {
+      if (MI.isCall()) {
+        if (MI.getOperand(0).getType() ==
+            llvm::MachineOperand::MO_GlobalAddress) {
+          const auto *GV = MI.getOperand(0).getGlobal();
+          const auto *Callee = dyn_cast<Function>(GV);
+          if (Callee) {
+            unsigned CallNode = MBBToNodeMap[&MBB];
+            CallSites.push_back({CallNode, Callee});
           }
+        }
       }
+    }
   }
 
   return true;
 }
 
-void MuArchStateGraph::fillMuGraph(
+void ProgramGraph::fillGraph(
     MachineModuleInfo *MMI,
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
         &MBBLatencyMap,
@@ -407,32 +408,35 @@ void MuArchStateGraph::fillMuGraph(
   bool IsEntry = true;
   for (auto &F : MMI->getModule()->getFunctionList()) {
     if (auto *MF = MMI->getMachineFunction(F)) {
-      fillMuGraphWithFunction(*MF, IsEntry, MBBLatencyMap, LoopBoundMap);
+      fillGraphWithFunction(*MF, IsEntry, MBBLatencyMap, LoopBoundMap);
       if (IsEntry)
         IsEntry = false;
     }
   }
 }
 
-bool MuArchStateGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
+bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
   // Process all captured call sites
   for (const auto &[CallNode, Callee] : CallSites) {
     // Use the maps to find entry and return nodes
     if (FunctionToEntryNodeMap.find(Callee) != FunctionToEntryNodeMap.end()) {
-        unsigned CaleeNode = FunctionToEntryNodeMap[Callee];
-        addEdge(CallNode, CaleeNode);
+      unsigned CaleeNode = FunctionToEntryNodeMap[Callee];
+      addEdge(CallNode, CaleeNode);
 
-        if (FunctionToReturnNodesMap.find(Callee) != FunctionToReturnNodesMap.end()) {
-            for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee]) {
-                // FIXME I think this is not ideal...
-                addEdge(ReturnNode, CallNode+1);
-            }
+      if (FunctionToReturnNodesMap.find(Callee) !=
+          FunctionToReturnNodesMap.end()) {
+        for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee]) {
+          // FIXME I think this is not ideal...
+          addEdge(ReturnNode, CallNode + 1);
         }
+      }
     } else {
-        // Fallback or error handling if callee not found in map
-        // This might happen for external functions or if FillMuGraphPass didn't run on it
-        if (DebugPrints)
-            outs() << "Warning: Callee " << Callee->getName() << " not found in FunctionToEntryNodeMap\n";
+      // Fallback or error handling if callee not found in map
+      // This might happen for external functions or if FillMuGraphPass didn't
+      // run on it
+      if (DebugPrints)
+        outs() << "Warning: Callee " << Callee->getName()
+               << " not found in FunctionToEntryNodeMap\n";
     }
   }
   // outs() << "Printing Dot file \n";

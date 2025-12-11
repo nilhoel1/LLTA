@@ -1,4 +1,4 @@
-#include "RTTargets/MuArchStateGraph.h"
+#include "RTTargets/ProgramGraph.h"
 #include "TimingAnalysisResults.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -11,23 +11,20 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/Target/TargetMachine.h"
 
-// #include "MIRPasses/InstructionLatencyPass.h"
+#include "Analysis/AbstractStateGraph.h"
+#include "Analysis/GraphAdapter.h"
+#include "Analysis/WorklistSolver.h"
+#include "ILP/AbstractILPSolver.h"
+#include "RTTargets/MSP430/MSP430Pipeline.h"
+
 namespace llvm {
 
-/**
- * Pass that performs path analysis on the MuArchStateGraph to compute WCET.
- * This pass solves an ILP to find the longest path from entry to exit node.
- */
 class PathAnalysisPass : public MachineFunctionPass {
 public:
   static char ID;
 
   bool FoundStartingFunction = false;
-
   Function *StartingFunction = nullptr;
-
-  // a struct that holds graphnodes and edges, which link to BBs
-  // and instructions
 
   const bool DebugPrints = true;
   TimingAnalysisResults &TAR;
@@ -35,15 +32,17 @@ public:
 
   CallGraph *CG = nullptr;
 
+  AbstractStateGraph ASG;
+  MSP430Pipeline Pipeline;
+  WorklistSolver AnalysisWorker;
+  std::unique_ptr<AbstractILPSolver> ABSolver;
+
   bool runOnMachineBasicBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &F) override;
-  bool dumpMuGraphToDotFile(MuArchStateGraph &MASG, StringRef FileName);
+  bool dumpMuGraphToDotFile(ProgramGraph &MASG, StringRef FileName);
   Function *getStartingFunction(CallGraph &CG);
 
-  /// Finalize the path analysis by solving the WCET ILP
-  /// @param MASG The microarchitectural state graph to analyze
-  /// @return true if WCET was successfully computed
-  bool finalizePathAnalysis(MuArchStateGraph &MASG);
+  bool finalizePathAnalysis(ProgramGraph &MASG);
   bool doFinalization(Module &) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -60,8 +59,8 @@ public:
     return "PathAnalysisPass for WCET computation via ILP";
   }
 };
-
 } // namespace llvm
+
 namespace llvm {
 MachineFunctionPass *createPathAnalysisPass(TimingAnalysisResults &TAR);
 } // namespace llvm

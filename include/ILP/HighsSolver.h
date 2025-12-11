@@ -12,9 +12,8 @@ public:
   ~HighsSolver() override;
 
   ILPResult
-  solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
-            unsigned ExitNodeId,
-            const std::map<unsigned, unsigned> &LoopBoundMap) override;
+  solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId, unsigned ExitNodeId,
+            std::map<unsigned, unsigned> const &LoopBoundMap) override;
 
   std::string getName() const override { return "HiGHS"; }
 

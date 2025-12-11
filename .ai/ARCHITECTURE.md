@@ -8,8 +8,8 @@ The `llta` tool executes the following MachineFunction passes in order (defined 
 3. **`AdressResolverPass`**: Resolves symbol addresses.
 4. **`InstructionLatencyPass`**: Assigns base latencies to instructions using Target models (e.g., MSP430).
 5. **`MachineLoopBoundAgregatorPass`**: Collects loop bounds.
-6. **`FillMuGraphPass`**: Builds the Microarchitectural State Graph (MASG).
-7. **`PathAnalysisPass`**: Performs the final WCET analysis using ILP.
+6. **`FillMuGraphPass`**: Builds the Program Graph (`ProgramGraph`).
+7. **`PathAnalysisPass`**: Performs the final WCET analysis using ILP (module-level in `doFinalization`).
 8. **`MIRtoIRPass`**: Converts internal results back to a form suitable for output/reporting.
 
 > [!NOTE]
@@ -19,14 +19,44 @@ The `llta` tool executes the following MachineFunction passes in order (defined 
 
 ### PathAnalysisPass & InstructionLatencyPass
 - **`InstructionLatencyPass`**: Uses `MSP430` opcode switch-cases (in `getMSP430Latency`) to assign cycle counts to individual instructions. It feeds latency data into the `TimingAnalysisResults`.
-- **`PathAnalysisPass`**: The consumer of the graph and latency data. It constructs an ILP (Integer Linear Programming) problem to find the longest path (Worst-Case Execution Time) through the code. It uses **Gurobi** or **HiGHS** to solve this optimization problem.
+- **`PathAnalysisPass`**: Orchestrates the WCET analysis in `doFinalization` (module-level). It runs **`WorklistSolver`** on the `ProgramGraph` to build an `AbstractStateGraph`, then uses **`AbstractILPSolver`** (Gurobi or HiGHS) to solve the longest path problem.
 
-## Hybrid LLTA Analysis Engine
+## Dual Analysis Architecture
 
-> [!IMPORTANT]
-> The project is transitioning to a **Hybrid Analysis Engine** that combines a static Worklist Solver with dynamic Hardware Strategies.
-> See [ANALYSIS_DESIGN.md](ANALYSIS_DESIGN.md) for the detailed blueprint.
+LLTA supports two analysis paths that should produce identical results:
 
-- **Solver**: Generic fixpoint engine.
-- **Pipeline Domain**: Logic for hazard detection.
-- **Strategies**: Pluggable C++ models for Cache and Branch Prediction.
+| Analysis Path | Graph Type           | Solver                                        | Description                            |
+| ------------- | -------------------- | --------------------------------------------- | -------------------------------------- |
+| **Legacy**    | `ProgramGraph`       | `GurobiSolver`, `HighsSolver`                 | Direct ILP on static graph             |
+| **Abstract**  | `AbstractStateGraph` | `AbstractGurobiSolver`, `AbstractHighsSolver` | Worklist-based abstract interpretation |
+
+### Comparison Mode (`--ilp-solver=all`)
+When using `--ilp-solver=all`, LLTA runs all 4 solver configurations and outputs a unified comparison table:
+
+```
++----------+-----------+------------+---------+-------------+----------------+
+| Type     | Solver    | Available  | Success | WCET (cyc)  | Time (ms)      |
++----------+-----------+------------+---------+-------------+----------------+
+| Legacy   | Gurobi    | Yes        | Yes     |        6347 |          1.468 |
+| Legacy   | HiGHS     | Yes        | Yes     |        6347 |          1.013 |
+| Abstract | Gurobi    | Yes        | Yes     |        6347 |          0.938 |
+| Abstract | HiGHS     | Yes        | Yes     |        6347 |          0.654 |
++----------+-----------+------------+---------+-------------+----------------+
+```
+
+## Abstract Analysis Framework
+
+### Core Components
+- **`AbstractState`**: Base class for lattice elements (join, meet, equals, clone).
+- **`AbstractAnalysable`**: Interface for transfer functions (`process`, `getInitialState`).
+- **`PipelineAnalysis`**: Composable analysis pipeline that orchestrates sub-analyses.
+- **`WorklistSolver`**: Generic fixpoint algorithm that iterates until convergence.
+- **`AbstractStateGraph`**: Result of abstract interpretation (nodes with states and costs).
+
+### Extending the Framework
+See `.ai/USAGE_GUIDE.md` for detailed instructions on:
+- Adding new target architectures
+- Creating custom analyses
+- Integrating new pipeline stages
+
+

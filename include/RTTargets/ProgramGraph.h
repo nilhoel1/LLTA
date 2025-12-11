@@ -1,5 +1,5 @@
-#ifndef MU_ARCH_STATE_GRAPH_H
-#define MU_ARCH_STATE_GRAPH_H
+#ifndef PROGRAM_GRAPH_H
+#define PROGRAM_GRAPH_H
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -7,6 +7,7 @@
 #include <map>
 #include <ostream>
 #include <set>
+#include <string>
 #include <unordered_map>
 
 namespace llvm {
@@ -16,17 +17,16 @@ class MachineModuleInfo;
 class MachineLoopInfo;
 
 struct MuArchState {
-  unsigned UpperBoundCycles;
-  unsigned LowerBoundCycles;
+  unsigned MinCycles;
+  unsigned MaxCycles;
+  std::string DebugInfo;
 
-  MuArchState(unsigned UpperBound, unsigned LowerBound)
-      : UpperBoundCycles(UpperBound), LowerBoundCycles(LowerBound) {}
+  MuArchState(unsigned Min, unsigned Max, std::string Info = "")
+      : MinCycles(Min), MaxCycles(Max), DebugInfo(Info) {}
+  virtual ~MuArchState() = default;
 
-  unsigned getUpperBoundCycles() const { return UpperBoundCycles; }
-  unsigned getLowerBoundCycles() const { return LowerBoundCycles; }
-
-  void setUpperBoundCycles(unsigned Cycles) { UpperBoundCycles = Cycles; }
-  void setLowerBoundCycles(unsigned Cycles) { LowerBoundCycles = Cycles; }
+  unsigned getUpperBoundCycles() const { return MaxCycles; }
+  unsigned getLowerBoundCycles() const { return MinCycles; }
 };
 
 class Node {
@@ -112,20 +112,20 @@ public:
   std::unique_ptr<MuArchState> State;
 };
 
-class MuArchStateGraph {
+class ProgramGraph {
 
 public:
   const bool DebugPrints = false;
   const bool Verbose = true;
 
-  MuArchStateGraph();
+  ProgramGraph();
 
-  MuArchStateGraph(MuArchStateGraph &G2);
+  ProgramGraph(ProgramGraph &G2);
 
-  ~MuArchStateGraph();
+  ~ProgramGraph();
 
-  unsigned addNode(MuArchState State, MachineBasicBlock *MBB);
-  unsigned addNode(MuArchState State, MachineBasicBlock *MBB,
+  unsigned addNode(std::unique_ptr<MuArchState> State, MachineBasicBlock *MBB);
+  unsigned addNode(std::unique_ptr<MuArchState> State, MachineBasicBlock *MBB,
                    StringRef NodeName);
 
   /**
@@ -154,8 +154,7 @@ public:
 
   void dump() const;
 
-  friend std::ostream &operator<<(std::ostream &Stream,
-                                  MuArchStateGraph Graph) {
+  friend std::ostream &operator<<(std::ostream &Stream, ProgramGraph Graph) {
     for (const auto &Nd : Graph.getNodes()) {
       Stream << Nd.second;
     }
@@ -173,7 +172,7 @@ public:
   /**
    * Fill the MuArchStateGraph with nodes and edges from a MachineFunction.
    */
-  bool fillMuGraphWithFunction(
+  bool fillGraphWithFunction(
       MachineFunction &MF, bool IsEntry,
       const std::unordered_map<const MachineBasicBlock *, unsigned int>
           &MBBLatencyMap,
@@ -185,11 +184,11 @@ public:
    * Fill the MuArchStateGraph with all functions from a module.
    */
   void
-  fillMuGraph(MachineModuleInfo *MMI,
-              const std::unordered_map<const MachineBasicBlock *, unsigned int>
-                  &MBBLatencyMap,
-              const std::unordered_map<const MachineBasicBlock *, unsigned int>
-                  &LoopBoundMap = {});
+  fillGraph(MachineModuleInfo *MMI,
+            const std::unordered_map<const MachineBasicBlock *, unsigned int>
+                &MBBLatencyMap,
+            const std::unordered_map<const MachineBasicBlock *, unsigned int>
+                &LoopBoundMap = {});
 
   /**
    * Finalize the graph by adding call and return edges.
@@ -232,4 +231,4 @@ private:
 
 } // end namespace llvm
 
-#endif // MU_ARCH_STATE_GRAPH_H
+#endif // PROGRAM_GRAPH_H

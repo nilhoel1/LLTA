@@ -1,7 +1,7 @@
 #ifndef TIMING_ANALYSIS_RESULTS_H
 #define TIMING_ANALYSIS_RESULTS_H
 
-#include "RTTargets/MuArchStateGraph.h"
+#include "RTTargets/ProgramGraph.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include <unordered_map>
 namespace llvm {
@@ -35,7 +35,7 @@ public:
   // END: Machine Loop Bound Agregator Pass Containers
 
   // START: MuArchStateGraph Container
-  MuArchStateGraph MASG;
+  ProgramGraph MASG;
   // END: MuArchStateGraph Container
 };
 

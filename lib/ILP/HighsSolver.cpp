@@ -23,7 +23,7 @@ bool HighsSolver::isAvailable() const {
 }
 
 ILPResult
-HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
+HighsSolver::solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId,
                        unsigned ExitNodeId,
                        const std::map<unsigned, unsigned> &LoopBoundMap) {
   ILPResult Result;
@@ -212,10 +212,10 @@ HighsSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
         }
       }
       if (BackEdgePreds.empty()) {
-         PreheaderPreds.clear();
-         for (unsigned PredId : N.getPredecessors()) {
-             PreheaderPreds.push_back(PredId);
-         }
+        PreheaderPreds.clear();
+        for (unsigned PredId : N.getPredecessors()) {
+          PreheaderPreds.push_back(PredId);
+        }
       }
     }
 
