@@ -440,7 +440,7 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
     }
   }
   // outs() << "Printing Dot file \n";
-  dump2Dot(StringRef("MuArchStateGraph.dot"));
+  dump2Dot(StringRef("ProgramGraph.dot"));
   return false;
 }
 
