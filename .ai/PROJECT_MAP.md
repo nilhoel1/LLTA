@@ -31,8 +31,11 @@
         - `PipelineAnalysis.cpp`: Core domain logic.
         - `SystemState.cpp`: Lattice element implementation.
         - `HardwareStrategies.cpp`: Cache and BP models.
+    - **`lib/Pipeline`**: Hardware Pipeline Simulation.
+        - `HardwarePipeline.cpp`: Cycle-accurate pipeline model implementation.
 - **`include/`**: Header files for the libraries.
-    - `include/Analysis/`: Headers for abstract base classes (`AbstractState`, `AbstractAnalysis`, `WorklistSolver`) and concrete implementations (`SystemState`, `PipelineAnalysis`, `HardwareStrategies`).
+    - `include/Analysis/`: Headers for abstract base classes (`AbstractState`, `AbstractAnalysis`, `WorklistSolver`) and concrete implementations (`SystemState`, `PipelineAnalysis`, `HardwareStrategies`, `MicroArchitectureAnalysis`).
+    - `include/Pipeline/`: Hardware pipeline headers (`HardwarePipeline.h`, `AbstractHardwareStage`).
     - `include/ILP/`: Headers for ILP solvers (`AbstractILPSolver`, `AbstractGurobiSolver`, `AbstractHighsSolver`).
 - **`externalDeps/`**: Downloaded external dependencies (LLVM source).
 - **`scripts/`**: Helper scripts for downloading and patching LLVM.

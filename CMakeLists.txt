@@ -92,7 +92,7 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP lltaAnalysis TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 # Configure RPATH to find shared libraries at runtime
 set(LLTA_RPATHS "")

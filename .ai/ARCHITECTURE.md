@@ -59,4 +59,25 @@ See `.ai/USAGE_GUIDE.md` for detailed instructions on:
 - Creating custom analyses
 - Integrating new pipeline stages
 
+## Hardware Pipeline Simulation
+
+### Overview
+The `HardwarePipeline` class (in `include/Pipeline/`) provides a cycle-accurate simulation of a CPU pipeline. It is integrated with the `AbstractAnalysable` interface via `MicroArchitectureAnalysis` (in `include/Analysis/`).
+
+### Core Components
+- **`AbstractHardwareStage`**: Interface for pipeline stages (Fetch, Decode, Execute, etc.). Each stage implements `cycle()`, `isReady()`, `execute()`, `getBusyCycles()`, and `clone()`.
+- **`HardwarePipeline`**: Holds a vector of stages. Provides `injectInstruction()`, `cycle()`, `isEmpty()`, `isRetired()`, and `convertCyclesToFastForward()` for fast simulation.
+- **`MicroArchState`**: An `AbstractState` that wraps the `HardwarePipeline`.
+- **`MicroArchitectureAnalysis`**: An `AbstractAnalysable` that uses the pipeline to compute cycle costs.
+
+### Simulation Strategy
+- **Inject & Retire**: Instructions are injected into the first stage and the simulation runs until the instruction retires from the last stage.
+- **Fast Forward**: Uses `getBusyCycles()` to skip ahead when all stages have known busy times.
+- **Dependency Handling**: Scoreboard or similar mechanisms (to be implemented in concrete stages) handle register dependencies.
+
+### Future Extensibility
+- **Branch Misprediction**: Add `flush()` method to clear the pipeline.
+- **Shared Resources**: Add a `ResourceManager` for bus arbitration between Fetch/Execute.
+
+
 
