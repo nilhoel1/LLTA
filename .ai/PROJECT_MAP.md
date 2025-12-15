@@ -5,6 +5,7 @@
 - **`lib/`**: Core library code.
     - **`lib/MIRPasses`**: Custom Machine IR analyses.
         - `TimingAnalysisPasses.cpp`: Defines the `getTimingAnalysisPasses` pipeline factory.
+        - `WCETAnalysisPipeline.cpp`: Implements the "Prep-Pass Pipeline" (IR canonicalization).
         - `InstructionLatencyPass.cpp`: Assigns architectural latencies to instructions.
         - `PathAnalysisPass.cpp`: Constructs and solves the WCET ILP problem (module-level).
         - `FillMuGraphPass.cpp`: Transforms the CFG into a Program Graph.

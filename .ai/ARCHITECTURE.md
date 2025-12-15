@@ -1,5 +1,13 @@
 # Architecture
 
+## Prep-Pass Strategy (IR Canonicalization)
+Before generating Machine IR (MIR), LLTA runs a fixed "Preparation Pipeline" on the LLVM IR to ensure a consistent shape for analysis. This is defined in `lib/MIRPasses/WCETAnalysisPipeline.cpp` and includes:
+1. **`SROA`**: scalar replacement of aggregates.
+2. **`SimplifyCFG`**: cleanup of dead blocks.
+3. **`LoopRotate`**: rotates loops for SCEV.
+4. **`LICM`**: loop invariant code motion (with MemorySSA).
+5. **`IndVarSimplify`**: canonicalizes induction variables.
+
 ## Analysis Pipeline (Pass Order)
 The `llta` tool executes the following MachineFunction passes in order (defined in `lib/MIRPasses/TimingAnalysisPasses.cpp`):
 
