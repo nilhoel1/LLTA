@@ -11,10 +11,12 @@ target_include_directories(LoopBoundPlugin PRIVATE
   ${CMAKE_BINARY_DIR}/tools/clang/include
 )
 
-# With shared libraries, link against Clang libraries normally
-target_link_libraries(LoopBoundPlugin PRIVATE
-  clangAST
-  clangBasic
-  clangFrontend
-  clangLex
-)
+# # With shared libraries, link against Clang libraries normally
+# # With shared libraries, link against Clang libraries normally
+# # target_link_libraries(LoopBoundPlugin PRIVATE
+# #   clangAST
+# #   clangBasic
+# #   clangFrontend
+# #   clangLex
+# # )
+# # )

@@ -18,6 +18,7 @@ static TimingAnalysisResults TAR = TimingAnalysisResults();
 std::list<MachineFunctionPass *> getTimingAnalysisPasses() {
   std::list<MachineFunctionPass *> Passes;
   Passes.push_back(createCallSplitterPass(TAR));
+  if (LLCMode) return Passes;
   Passes.push_back(createAsmDumpAndCheckPass(TAR));
   Passes.push_back(createAdressResolverPass(TAR));
   Passes.push_back(createInstructionLatencyPass(TAR));

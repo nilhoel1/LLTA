@@ -45,6 +45,10 @@ download() {
   echo "Downloading HiGHS optimizer..."
   "${SCRIPT_DIR}/scripts/download_highs.sh"
   echo "HiGHS downloaded and extracted."
+
+  echo "Downloading MSP430 Toolchain..."
+  "${SCRIPT_DIR}/scripts/download_MSP430.sh"
+  echo "MSP430 Toolchain setup complete."
 }
 
 apply_patch() {

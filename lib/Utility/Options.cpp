@@ -31,3 +31,9 @@ cl::opt<std::string>
                              "With 'all', all available solvers are run and "
                              "their performance is compared."),
                     cl::cat(LLTA));
+
+cl::opt<bool>
+    LLCMode("llc", cl::init(false),
+            cl::desc("Run purely as a compiler driver (like llc) executing "
+                     "transformation passes without performing WCET analysis."),
+            cl::cat(LLTA));
