@@ -4,7 +4,7 @@
 
 ### 1.1 ToDos
 
-- [ ] Add MSP430 Toolchain , to build examples here.
+- [x] Add MSP430 Toolchain , to build examples here.
 - [ ] Double Check completenes of `AdressResolverPass`.
 - [ ] Link LLVM IR analyses with custom LLTA analyses.
 

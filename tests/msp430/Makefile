@@ -15,7 +15,7 @@ CCFLAGS = -D__MSP430F5529__ -O0 -gdwarf-4 -gstrict-dwarf -fno-dwarf2-cfi-asm \
           -I$(MSP_DRIVERLIB)
 
 # Optimization Passes
-OPTFLAGS = -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' -S
+OPTFLAGS = -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' -S #,loop-unroll
 
 # Backend Flags
 LLCFLAGS = --dwarf-version=4 --strict-dwarf -mtriple=msp430 -mcpu=msp430x \
