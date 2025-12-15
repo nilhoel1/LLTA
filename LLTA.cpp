@@ -62,6 +62,7 @@
 // MODIFICATION:
 //inlcude MachineCFGPrinter
 #include "MIRPasses/TimingAnalysisPasses.h"
+#include "MIRPasses/WCETAnalysisPipeline.h"
 #include "llvm/CodeGen/MachineCFGPrinter.h"
 // END MODIFICATION
 using namespace llvm;
@@ -671,6 +672,12 @@ static int compileModule(char **argv, LLVMContext &Context) {
                                   std::move(DwoOut), Context, TLII, VK,
                                   PassPipeline, codegen::getFileType());
   }
+
+  // MODIFICATION:
+  // Run the preparation pipeline (canonicalization, simplification)
+  // before the legacy pass manager takes over.
+  runWCETAnalysisPipeline(*M);
+  // END MODIFICATION
 
   // Build up all of the passes that we want to do to the module.
   legacy::PassManager PM;
