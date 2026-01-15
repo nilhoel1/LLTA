@@ -22,7 +22,6 @@ std::list<MachineFunctionPass *> getTimingAnalysisPasses() {
   std::list<MachineFunctionPass *> Passes;
   if (DebugIR) {
     Passes.push_back(createDebugIRPass());
-    return Passes;
   }
   Passes.push_back(createCallSplitterPass(TAR));
   Passes.push_back(createAsmDumpAndCheckPass(TAR));

@@ -20,6 +20,7 @@ public:
   DebugIRPass();
 
   CallGraph *CG = nullptr;
+  int UnnamedCounter = 0;
 
   bool runOnMachineBasicBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &F) override;
@@ -32,6 +33,8 @@ public:
     AU.addRequired<CallGraphWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   };
+
+  std::unique_ptr<llvm::Module>createDebugInfo(llvm::Module &M, std::string Directory, std::string Filename);
 
   virtual llvm::StringRef getPassName() const override {
     return "DebugIRPass for testing different analysis results";

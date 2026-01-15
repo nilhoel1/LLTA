@@ -48,6 +48,8 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "MIRPasses/DebugIRPass.h"
+#include "Utility/Options.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
@@ -715,6 +717,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       }
 
       TPC.setDisableVerify(NoVerify);
+      if (DebugIR) TPC.addPass(createDebugIRPass());
       PM.add(&TPC);
       PM.add(MMIWP);
       TPC.printAndVerify("");
