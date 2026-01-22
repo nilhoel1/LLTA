@@ -1,0 +1,255 @@
+instruction,asm,bench_type,latency_type,min_cycles,avg_cycles,max_cycles,iterations,status
+ADD,"add a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+ADDI,"addi a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+AMOADD_W,"amoadd.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOADD_W_AQ,"amoadd.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOADD_W_AQ_RL,"amoadd.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOADD_W_RL,"amoadd.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOAND_W,"amoand.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOAND_W_AQ,"amoand.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOAND_W_AQ_RL,"amoand.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOAND_W_RL,"amoand.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAXU_W,"amomaxu.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAXU_W_AQ,"amomaxu.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAXU_W_AQ_RL,"amomaxu.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAXU_W_RL,"amomaxu.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAX_W,"amomax.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAX_W_AQ,"amomax.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAX_W_AQ_RL,"amomax.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMAX_W_RL,"amomax.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMINU_W,"amominu.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMINU_W_AQ,"amominu.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMINU_W_AQ_RL,"amominu.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMINU_W_RL,"amominu.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMIN_W,"amomin.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMIN_W_AQ,"amomin.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMIN_W_AQ_RL,"amomin.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOMIN_W_RL,"amomin.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOOR_W,"amoor.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOOR_W_AQ,"amoor.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOOR_W_AQ_RL,"amoor.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOOR_W_RL,"amoor.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOSWAP_W,"amoswap.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOSWAP_W_AQ,"amoswap.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOSWAP_W_AQ_RL,"amoswap.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOSWAP_W_RL,"amoswap.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOXOR_W,"amoxor.w a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOXOR_W_AQ,"amoxor.w.aq a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOXOR_W_AQ_RL,"amoxor.w.aqrl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AMOXOR_W_RL,"amoxor.w.rl a0, a0, (a0)",latency,atomic,6,6,14,5000,0
+AND,"and a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+ANDI,"andi a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+AUIPC,"auipc a0, 0",latency,unknown,1,1,9,5000,0
+BEQ,"beq a0, a0, 0",latency,branch,1,1,9,5000,0
+BGE,"bge a0, a0, 0",latency,branch,1,4,12,5000,0
+BGEU,"bgeu a0, a0, 0",latency,branch,1,4,12,5000,0
+BLT,"blt a0, a0, 0",latency,branch,1,4,12,5000,0
+BLTU,"bltu a0, a0, 0",latency,branch,1,4,12,5000,0
+BNE,"bne a0, a0, 0",latency,branch,1,1,9,5000,0
+C_ADD,"c.add a0, a0",latency,arithmetic,1,1,9,5000,0
+C_ADDI,"c.addi a0, 1",latency,arithmetic,1,1,9,5000,0
+C_ADDI_HINT_IMM_ZERO,"c.addi a0, 0",latency,arithmetic,1,1,9,5000,0
+C_AND,"c.and a0, a0",latency,arithmetic,1,1,9,5000,0
+C_ANDI,"c.andi a0, 0",latency,arithmetic,1,1,9,5000,0
+C_BEQZ,"c.beqz a0, 0",latency,branch,1,3,11,5000,0
+C_BNEZ,"c.bnez a0, 0",latency,branch,3,3,11,5000,0
+C_J,"c.j 0",latency,jump,2,2,10,5000,0
+C_JAL,"c.jal 0",latency,jump,2,2,10,5000,0
+C_LI,"c.li a0, 0",latency,arithmetic,1,1,9,5000,0
+C_LW,"c.lw a0, 0(a0)",latency,load_store,3,3,11,5000,0
+C_LW_INX,"c.lw a0, 0(a0)",latency,load_store,3,3,11,5000,0
+C_MV,"c.mv a0, a0",latency,arithmetic,1,1,9,5000,0
+C_OR,"c.or a0, a0",latency,arithmetic,1,1,9,5000,0
+C_SLLI,"c.slli a0, 1",latency,arithmetic,1,1,9,5000,0
+C_SRAI,"c.srai a0, 1",latency,arithmetic,1,1,9,5000,0
+C_SRLI,"c.srli a0, 1",latency,arithmetic,1,1,9,5000,0
+C_SUB,"c.sub a0, a0",latency,arithmetic,1,1,9,5000,0
+C_SW,"c.sw a0, 0(a0)",latency,load_store,3,3,11,5000,0
+C_SW_INX,"c.sw a0, 0(a0)",latency,load_store,3,3,11,5000,0
+C_XOR,"c.xor a0, a0",latency,arithmetic,1,1,9,5000,0
+DIV,"div a0, a0, a0",latency,multiply,10,10,18,5000,0
+DIV,"div a0, a0, a0",latency,multiply,10,10,18,5000,0
+DIV,"div a0, a0, a0",latency,multiply,10,10,18,5000,0
+DIVU,"divu a0, a0, a0",latency,multiply,10,10,18,5000,0
+DIVU,"divu a0, a0, a0",latency,multiply,10,10,18,5000,0
+DIVU,"divu a0, a0, a0",latency,multiply,10,10,18,5000,0
+JAL,"jal a0, 0",latency,jump,3,3,11,5000,0
+LUI,"lui a0, 0",latency,unknown,1,1,9,5000,0
+LW,"lw a0, 0(a0)",latency,load,3,3,11,5000,0
+LW_INX,"lw a0, 0(a0)",latency,load,3,3,11,5000,0
+MUL,"mul a0, a0, a0",latency,multiply,1,1,9,5000,0
+MULH,"mulh a0, a0, a0",latency,multiply,2,2,10,5000,0
+MULHSU,"mulhsu a0, a0, a0",latency,multiply,2,2,10,5000,0
+MULHU,"mulhu a0, a0, a0",latency,multiply,2,2,10,5000,0
+OR,"or a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+ORI,"ori a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+REM,"rem a0, a0, a0",latency,multiply,10,10,18,5000,0
+REM,"rem a0, a0, a0",latency,multiply,10,10,18,5000,0
+REM,"rem a0, a0, a0",latency,multiply,10,10,18,5000,0
+REMU,"remu a0, a0, a0",latency,multiply,10,10,18,5000,0
+REMU,"remu a0, a0, a0",latency,multiply,10,10,18,5000,0
+REMU,"remu a0, a0, a0",latency,multiply,10,10,18,5000,0
+SB,"sb a0, 0(a0)",latency,store,3,3,11,5000,0
+SEXT_B,"sext.b a0, a0",latency,unknown,2,2,10,5000,0
+SEXT_H,"sext.h a0, a0",latency,unknown,2,2,10,5000,0
+SH,"sh a0, 0(a0)",latency,store,3,3,11,5000,0
+SH_INX,"sh a0, 0(a0)",latency,store,3,3,11,5000,0
+SLL,"sll a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SLLI,"slli a0, a0, 1",latency,arithmetic,1,1,9,5000,0
+SLT,"slt a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SLTI,"slti a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+SLTIU,"sltiu a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+SLTU,"sltu a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SRA,"sra a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SRAI,"srai a0, a0, 1",latency,arithmetic,1,1,9,5000,0
+SRL,"srl a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SRLI,"srli a0, a0, 1",latency,arithmetic,1,1,9,5000,0
+SUB,"sub a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+SW,"sw a0, 0(a0)",latency,store,3,3,11,5000,0
+SW_INX,"sw a0, 0(a0)",latency,store,3,3,11,5000,0
+XOR,"xor a0, a0, a0",latency,arithmetic,1,1,9,5000,0
+XORI,"xori a0, a0, 0",latency,arithmetic,1,1,9,5000,0
+ZEXT_H_RV32,"zext.h a0, a0",latency,unknown,2,2,10,5000,0
+ZEXT_H_RV64,"zext.h a0, a0",latency,unknown,2,2,10,5000,0
+ADD,"add a0, a0, a0",throughput,arithmetic,1,66963999,0,5000,0
+ADDI,"addi a0, a0, 0",throughput,arithmetic,1,113629754,0,5000,0
+AMOADD_W,"amoadd.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOADD_W_AQ,"amoadd.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOADD_W_AQ_RL,"amoadd.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOADD_W_RL,"amoadd.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOAND_W,"amoand.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOAND_W_AQ,"amoand.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOAND_W_AQ_RL,"amoand.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOAND_W_RL,"amoand.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAXU_W,"amomaxu.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAXU_W_AQ,"amomaxu.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAXU_W_AQ_RL,"amomaxu.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAXU_W_RL,"amomaxu.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAX_W,"amomax.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAX_W_AQ,"amomax.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAX_W_AQ_RL,"amomax.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMAX_W_RL,"amomax.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMINU_W,"amominu.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMINU_W_AQ,"amominu.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMINU_W_AQ_RL,"amominu.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMINU_W_RL,"amominu.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMIN_W,"amomin.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMIN_W_AQ,"amomin.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMIN_W_AQ_RL,"amomin.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOMIN_W_RL,"amomin.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOOR_W,"amoor.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOOR_W_AQ,"amoor.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOOR_W_AQ_RL,"amoor.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOOR_W_RL,"amoor.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOSWAP_W,"amoswap.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOSWAP_W_AQ,"amoswap.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOSWAP_W_AQ_RL,"amoswap.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOSWAP_W_RL,"amoswap.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOXOR_W,"amoxor.w a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOXOR_W_AQ,"amoxor.w.aq a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOXOR_W_AQ_RL,"amoxor.w.aqrl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AMOXOR_W_RL,"amoxor.w.rl a0, a0, (a0)",throughput,atomic,6,8,0,5000,0
+AND,"and a0, a0, a0",throughput,arithmetic,1,15798521,0,5000,0
+ANDI,"andi a0, a0, 0",throughput,arithmetic,1,15872245,0,5000,0
+AUIPC,"auipc a0, 0",throughput,unknown,1,115557374,0,5000,0
+BEQ,"beq a0, a0, 0",throughput,branch,1,1,0,5000,0
+BGE,"bge a0, a0, 0",throughput,branch,2,3,0,5000,0
+BGEU,"bgeu a0, a0, 0",throughput,branch,2,3,0,5000,0
+BLT,"blt a0, a0, 0",throughput,branch,1,3,0,5000,0
+BLTU,"bltu a0, a0, 0",throughput,branch,1,3,0,5000,0
+BNE,"bne a0, a0, 0",throughput,branch,1,1,0,5000,0
+C_ADD,"c.add a0, a0",throughput,arithmetic,1,100398774,0,5000,0
+C_ADDI,"c.addi a0, 1",throughput,arithmetic,1,1,0,5000,0
+C_ADDI_HINT_IMM_ZERO,"c.addi a0, 0",throughput,arithmetic,1,1,0,5000,0
+C_ADD_HINT,"c.add zero, a0",throughput,arithmetic,1,100398774,0,5000,0
+C_AND,"c.and a0, a0",throughput,arithmetic,1,1,0,5000,0
+C_ANDI,"c.andi a0, 0",throughput,arithmetic,1,1,0,5000,0
+C_BEQZ,"c.beqz a0, 0",throughput,branch,2,3,0,5000,0
+C_BNEZ,"c.bnez a0, 0",throughput,branch,1,3,0,5000,0
+C_J,"c.j 0",throughput,jump,2,2,0,5000,0
+C_JAL,"c.jal 0",throughput,jump,2,2,0,5000,0
+C_LI,"c.li a0, 0",throughput,arithmetic,1,17127399,0,5000,0
+C_LI_HINT,"c.li zero, 0",throughput,arithmetic,1,17200330,0,5000,0
+C_LW,"c.lw a0, 0(a0)",throughput,load_store,1,1,0,5000,0
+C_LWSP,"c.lwsp a0, 0(sp)",throughput,load_store,1,2,0,5000,0
+C_LWSP_INX,"c.lwsp a0, 0(sp)",throughput,load_store,1,2,0,5000,0
+C_LW_INX,"c.lw a0, 0(a0)",throughput,load_store,1,1,0,5000,0
+C_MV,"c.mv a0, a0",throughput,arithmetic,1,117965806,0,5000,0
+C_MV_HINT,"c.mv zero, a0",throughput,arithmetic,1,118037227,0,5000,0
+C_OR,"c.or a0, a0",throughput,arithmetic,1,1,0,5000,0
+C_SLLI,"c.slli a0, 1",throughput,arithmetic,1,116436572,0,5000,0
+C_SLLI_HINT,"c.slli zero, 1",throughput,arithmetic,1,116362733,0,5000,0
+C_SRAI,"c.srai a0, 1",throughput,arithmetic,1,1,0,5000,0
+C_SRLI,"c.srli a0, 1",throughput,arithmetic,1,1,0,5000,0
+C_SUB,"c.sub a0, a0",throughput,arithmetic,1,1,0,5000,0
+C_SW,"c.sw a0, 0(a0)",throughput,load_store,1,1,0,5000,0
+C_SWSP,"c.swsp a0, 0(sp)",throughput,load_store,1,2,0,5000,0
+C_SWSP_INX,"c.swsp a0, 0(sp)",throughput,load_store,1,2,0,5000,0
+C_SW_INX,"c.sw a0, 0(a0)",throughput,load_store,1,1,0,5000,0
+C_XOR,"c.xor a0, a0",throughput,arithmetic,1,1,0,5000,0
+DIV,"div a0, a0, a0",throughput,multiply,10,18511667,0,5000,0
+DIV,"div a0, a0, a0",throughput,multiply,10,18583667,0,5000,0
+DIV,"div a0, a0, a0",throughput,multiply,10,18656445,0,5000,0
+DIVU,"divu a0, a0, a0",throughput,multiply,10,18729963,0,5000,0
+DIVU,"divu a0, a0, a0",throughput,multiply,10,18804403,0,5000,0
+DIVU,"divu a0, a0, a0",throughput,multiply,10,18880432,0,5000,0
+JAL,"jal a0, 0",throughput,jump,2,2,0,5000,0
+LB,"lb a0, 0(a0)",throughput,load,0,19015890,0,5000,0
+LBU,"lbu a0, 0(a0)",throughput,load,0,19083477,0,5000,0
+LH,"lh a0, 0(a0)",throughput,load,0,19153781,0,5000,0
+LHU,"lhu a0, 0(a0)",throughput,load,0,19221312,0,5000,0
+LH_INX,"lh a0, 0(a0)",throughput,load,0,19291827,0,5000,0
+LUI,"lui a0, 0",throughput,unknown,1,9816742,0,5000,0
+LW,"lw a0, 0(a0)",throughput,load,0,59592358,0,5000,0
+LW_INX,"lw a0, 0(a0)",throughput,load,0,59660683,0,5000,0
+MUL,"mul a0, a0, a0",throughput,multiply,1,20135133,0,5000,0
+MULH,"mulh a0, a0, a0",throughput,multiply,2,19645277,0,5000,0
+MULHSU,"mulhsu a0, a0, a0",throughput,multiply,2,19718414,0,5000,0
+MULHU,"mulhu a0, a0, a0",throughput,multiply,2,19794217,0,5000,0
+OR,"or a0, a0, a0",throughput,arithmetic,1,100657711,0,5000,0
+ORI,"ori a0, a0, 0",throughput,arithmetic,1,120597824,0,5000,0
+REM,"rem a0, a0, a0",throughput,multiply,10,6469108,0,5000,0
+REM,"rem a0, a0, a0",throughput,multiply,10,6617064,0,5000,0
+REM,"rem a0, a0, a0",throughput,multiply,10,6765553,0,5000,0
+REMU,"remu a0, a0, a0",throughput,multiply,10,6914575,0,5000,0
+REMU,"remu a0, a0, a0",throughput,multiply,10,7064754,0,5000,0
+REMU,"remu a0, a0, a0",throughput,multiply,10,7207194,0,5000,0
+SB,"sb a0, 0(a0)",throughput,store,1,1,0,5000,0
+SEXT_B,"sext.b a0, a0",throughput,unknown,2,20522107,0,5000,0
+SEXT_H,"sext.h a0, a0",throughput,unknown,2,20595274,0,5000,0
+SH,"sh a0, 0(a0)",throughput,store,1,1,0,5000,0
+SH_INX,"sh a0, 0(a0)",throughput,store,1,1,0,5000,0
+SLL,"sll a0, a0, a0",throughput,arithmetic,1,20801841,0,5000,0
+SLLI,"slli a0, a0, 1",throughput,arithmetic,1,21043791,0,5000,0
+SLT,"slt a0, a0, a0",throughput,arithmetic,1,20951607,0,5000,0
+SLTI,"slti a0, a0, 0",throughput,arithmetic,1,21023111,0,5000,0
+SLTIU,"sltiu a0, a0, 0",throughput,arithmetic,1,21096024,0,5000,0
+SLTU,"sltu a0, a0, a0",throughput,arithmetic,1,21171149,0,5000,0
+SRA,"sra a0, a0, a0",throughput,arithmetic,1,21243136,0,5000,0
+SRAI,"srai a0, a0, 1",throughput,arithmetic,1,21316034,0,5000,0
+SRL,"srl a0, a0, a0",throughput,arithmetic,1,21390344,0,5000,0
+SRLI,"srli a0, a0, 1",throughput,arithmetic,1,21465560,0,5000,0
+SUB,"sub a0, a0, a0",throughput,arithmetic,1,67015869,0,5000,0
+SW,"sw a0, 0(a0)",throughput,store,1,1,0,5000,0
+SW_INX,"sw a0, 0(a0)",throughput,store,1,1,0,5000,0
+XOR,"xor a0, a0, a0",throughput,arithmetic,1,111532194,0,5000,0
+XORI,"xori a0, a0, 0",throughput,arithmetic,1,122477669,0,5000,0
+ZEXT_H_RV32,"zext.h a0, a0",throughput,unknown,2,21895227,0,5000,0
+ZEXT_H_RV64,"zext.h a0, a0",throughput,unknown,2,21969015,0,5000,0
+CACHE_SRAM,"Pointer Chasing",latency,load,3,3,0,5000,0
+CACHE_FLASH_HIT,"Pointer Chasing",latency,load,4,4,0,5000,0
+CACHE_FLASH_MISS,"Pointer Chasing",latency,load,347,347,0,5000,0
+UNALIGNED_LOAD_0_ALIGNED,"Unaligned Load",latency,load,1,1,0,5000,0
+UNALIGNED_LOAD_1,"Unaligned Load",latency,load,2,2,0,5000,0
+UNALIGNED_LOAD_31_CROSS_LINE,"Unaligned Load",latency,load,2,2,0,5000,0
+FETCH_LINEAR_1000_NOP,"Instruction Fetch",latency,load,1001,1006,0,5000,0
+FETCH_BRANCHY_1000_JMP,"Instruction Fetch",latency,load,3001,3016,0,5000,0
+CACHE_REPLACEMENT_LRU,"Pointer Chasing",latency,load,123,693,0,5000,0
+BRANCH_BACKWARD_TAKEN,"Branch Predictor Test",latency,branch,2,2,0,5000,0
+BRANCH_FORWARD_TAKEN,"Branch Predictor Test",latency,branch,4,4,0,5000,0
+BRANCH_FORWARD_NOT_TAKEN,"Branch Predictor Test",latency,branch,1,1,0,5000,0
+BRANCH_BACKWARD_NOT_TAKEN,"Branch Predictor Test",latency,branch,4,4,0,5000,0
+BRANCH_WARMUP_DETECTION,"Branch Predictor Test",latency,branch,5,5,0,5000,0
+STRUCTURAL_HAZARD_DIV_ADD,"div + add (independent)",throughput,arithmetic,11,11,0,5000,0
+SB_BURST_100_SW,"sw a0, 0(a1) (x100)",throughput,store,0,104,0,5000,0
+SB_FORWARDING_SW_LW,"sw + lw (same addr)",latency,load_store,0,3,0,5000,0
