@@ -88,7 +88,7 @@ conf() {
     -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_TESTS=OFF \
     -DLLVM_OPTIMIZED_TABLEGEN=ON \
-    -DLLVM_TARGETS_TO_BUILD='MSP430' \
+    -DLLVM_TARGETS_TO_BUILD='MSP430;RISCV' \
     -DLLVM_EXTERNAL_LLTA_SOURCE_DIR="${SCRIPT_DIR}" \
     -DLLVM_EXTERNAL_CLANG_PLUGIN_SOURCE_DIR="${SCRIPT_DIR}/clang-plugin" \
     -DLLVM_EXTERNAL_PROJECTS='LLTA;clang-plugin' \
@@ -106,6 +106,7 @@ build() {
     exit 1
   fi
   cd build
+  $BUILD_COMMAND clang-resource-headers
   $BUILD_COMMAND llta LoopBoundPlugin
   cd ..
 }
@@ -116,6 +117,7 @@ build_all() {
     exit 1
   fi
   cd build
+  $BUILD_COMMAND clang-resource-headers
   $BUILD_COMMAND
   cd ..
 }
