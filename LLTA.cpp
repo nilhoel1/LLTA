@@ -717,7 +717,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       }
 
       TPC.setDisableVerify(NoVerify);
-      if (DebugIR) TPC.addPass(createDebugIRPass());
+      // if (DebugIR) TPC.addPass(createDebugIRPass());
       PM.add(&TPC);
       PM.add(MMIWP);
       TPC.printAndVerify("");

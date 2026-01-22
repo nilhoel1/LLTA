@@ -14,7 +14,7 @@ cl::opt<std::string> StartFunctionName(
 
 cl::opt<bool>
     DebugIR("gIR", cl::init(false),
-            cl::desc("Use this option to move debug information for the IR"),
+            cl::desc("Use this option to move debug information to the IR"),
             cl::cat(LLTA));
 
 cl::opt<std::string> LoopBoundsJSON(

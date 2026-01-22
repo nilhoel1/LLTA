@@ -4,6 +4,7 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+
     {
       "type": "lldb",
       "request": "launch",
@@ -37,6 +38,18 @@
       "--ilp-solver=all"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
-    }
+    }, {
+      "type": "lldb",
+      "request": "launch",
+      "name": "DebugIR MSP430",
+      "program": "${workspaceFolder}/build/bin/llta",
+      "args": ["${workspaceFolder}/tests/msp430/cnt/msp.ll",
+      "-dump-file=${workspaceFolder}/tests/msp430/cnt/msp.elf.dump",
+      "-start-function=main",
+      "--gIR",
+      "--ilp-solver=all"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
   ]
 }
