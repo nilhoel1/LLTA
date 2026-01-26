@@ -20,10 +20,10 @@ static TimingAnalysisResults TAR = TimingAnalysisResults();
 
 std::list<MachineFunctionPass *> getTimingAnalysisPasses() {
   std::list<MachineFunctionPass *> Passes;
+  Passes.push_back(createCallSplitterPass(TAR));
   if (DebugIR) {
     Passes.push_back(createDebugIRPass());
   }
-  Passes.push_back(createCallSplitterPass(TAR));
   Passes.push_back(createAsmDumpAndCheckPass(TAR));
   Passes.push_back(createAdressResolverPass(TAR));
   Passes.push_back(createInstructionLatencyPass(TAR));
