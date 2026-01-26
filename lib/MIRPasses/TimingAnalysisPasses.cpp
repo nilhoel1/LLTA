@@ -20,18 +20,19 @@ static TimingAnalysisResults TAR = TimingAnalysisResults();
 
 std::list<MachineFunctionPass *> getTimingAnalysisPasses() {
   std::list<MachineFunctionPass *> Passes;
-  Passes.push_back(createCallSplitterPass(TAR));
   if (DebugIR) {
     Passes.push_back(createDebugIRPass());
+  } else {
+    Passes.push_back(createCallSplitterPass(TAR));
+    Passes.push_back(createAsmDumpAndCheckPass(TAR));
+    Passes.push_back(createAdressResolverPass(TAR));
+    Passes.push_back(createInstructionLatencyPass(TAR));
+    // Passes.push_back(createAccessAnalysesPass(TM));
+    Passes.push_back(createMachineLoopBoundAgregatorPass(TAR));
+    Passes.push_back(createFillMuGraphPass(TAR));
+    Passes.push_back(createPathAnalysisPass(TAR));
+    Passes.push_back(createMIRtoIRPass(TAR));
   }
-  Passes.push_back(createAsmDumpAndCheckPass(TAR));
-  Passes.push_back(createAdressResolverPass(TAR));
-  Passes.push_back(createInstructionLatencyPass(TAR));
-  // Passes.push_back(createAccessAnalysesPass(TM));
-  Passes.push_back(createMachineLoopBoundAgregatorPass(TAR));
-  Passes.push_back(createFillMuGraphPass(TAR));
-  Passes.push_back(createPathAnalysisPass(TAR));
-  Passes.push_back(createMIRtoIRPass(TAR));
   return Passes;
 }
 
