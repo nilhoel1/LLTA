@@ -106,7 +106,7 @@ build() {
     exit 1
   fi
   cd build
-  $BUILD_COMMAND clang-resource-headers
+  $BUILD_COMMAND clang-resource-headers clang
   $BUILD_COMMAND llta LoopBoundPlugin
   cd ..
 }
@@ -117,7 +117,7 @@ build_all() {
     exit 1
   fi
   cd build
-  $BUILD_COMMAND clang-resource-headers
+  $BUILD_COMMAND clang-resource-headers clang
   $BUILD_COMMAND
   cd ..
 }

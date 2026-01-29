@@ -2,6 +2,7 @@
 #define ABSTRACT_STATE_GRAPH_H
 
 #include "AbstractState.h"
+#include "Analysis/Callbacks/CallbackManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -59,6 +60,9 @@ public:
   };
   std::vector<CallSite> CallSites;
 
+  CallbackManager &getCallbackManager() { return Callbacks; }
+  const CallbackManager &getCallbackManager() const { return Callbacks; }
+
   void dump() const;
 
 private:
@@ -66,6 +70,7 @@ private:
   std::map<unsigned, std::unique_ptr<Node>> Nodes;
   std::map<unsigned, std::set<Edge>> AdjacencyList;
   std::map<unsigned, std::set<unsigned>> Predecessors;
+  CallbackManager Callbacks;
 };
 
 } // namespace llvm

@@ -3,6 +3,21 @@
 ## Prime Directive
 **NO TASK IS COMPLETE UNTIL THE DOCUMENTATION REFLECTS THE CHANGE.**
 
+## CRITICAL BUILD RULE
+**ALWAYS use `./config.sh build` for building LLTA - never use direct ninja or cmake commands.**
+
+**Build order matters, especially for clang plugin dependencies.** Using direct ninja/cmake commands can cause:
+- Incorrect dependency resolution
+- Missing rebuilds of required components
+- Clang plugin build failures
+- Intermittent build errors
+
+**NEVER continue to the next task/phase without a successful build validated by:**
+1. Build completes without errors
+2. cnt test produces 6347 cycles
+3. cover test produces 3483 cycles
+4. Regression test returns GREEN
+
 ## Trigger Actions
 | If you do this...     | You MUST update this...                        |
 | :-------------------- | :--------------------------------------------- |

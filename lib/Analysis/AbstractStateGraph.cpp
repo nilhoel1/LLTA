@@ -8,12 +8,21 @@ unsigned AbstractStateGraph::addNode(std::unique_ptr<AbstractState> State,
                                      const MachineBasicBlock *MBB) {
   unsigned Id = NextNodeId++;
   Nodes[Id] = std::make_unique<Node>(Id, std::move(State), MBB);
+
+  Callbacks.notifyNodeAdded(Id, MBB);
+
   return Id;
 }
 
 void AbstractStateGraph::addEdge(unsigned From, unsigned To, bool IsBackEdge) {
+  if (!Callbacks.canJoinEdge(From, To)) {
+    return;
+  }
+
   AdjacencyList[From].insert({To, IsBackEdge});
   Predecessors[To].insert(From);
+
+  Callbacks.notifyEdgeAdded(From, To, IsBackEdge);
 }
 
 void AbstractStateGraph::removeEdge(unsigned From, unsigned To) {
