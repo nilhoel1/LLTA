@@ -88,9 +88,7 @@ pythonenv*
 *.dot
 *.out
 test
-*cache*
 *vscode*
-*build*
 compile_commands.json
 *.devcontainer*
 *.DS_Store*

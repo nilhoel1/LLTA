@@ -1,0 +1,102 @@
+Set parameter Username
+Set parameter LicenseID to value 2620658
+Academic license - for non-commercial use only - expires 2026-02-11
+Set parameter Username
+Set parameter LicenseID to value 2620658
+Academic license - for non-commercial use only - expires 2026-02-11
+Initialized ASG from PG: 26 nodes.
+Starting Worklist Algorithm...
+Worklist Analysis Complete.
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+Loaded 4 loop bounds from JSON file: /Users/nilsholscher/workspaces/LLTA/tests/msp430/build_cnt/cnt.loop_bounds.json
+
+=== Path Analysis: Computing WCET via ILP ===
+Entry node ID: 0
+Exit node ID: 1
+Total nodes: 26
+Total edges: 35
+Loop node 10 (for.body) has bound: 10
+Loop node 11 (for.body3) has bound: 10
+Loop node 17 (for.body) has bound: 10
+Loop node 20 (for.body3) has bound: 10
+Auto-selected Gurobi solver
+Using ILP solver: Gurobi
+
+Solving WCET ILP...
+
+=== WCET Analysis Results ===
+Status: Optimal solution found
+WCET (worst-case execution time): 6347 cycles
+
+Node execution counts:
+  Node 0 (Entry): 1 times, 0 cycles/exec
+  Node 1 (Exit): 1 times, 0 cycles/exec
+  Node 2 (entry): 1 times, 4 cycles/exec
+  Node 3 (entry): 1 times, 6 cycles/exec
+  Node 4 (entry): 1 times, 6 cycles/exec
+  Node 5 (entry): 1 times, 10 cycles/exec
+  Node 6 (entry): 1 times, 8 cycles/exec
+  Node 7 (entry): 1 times, 5 cycles/exec
+  Node 8 (entry): 1 times, 9 cycles/exec
+  Node 9 (entry): 1 times, 15 cycles/exec
+  Node 10 (for.body): 10 times, 2 cycles/exec
+  Node 11 (for.body3): 100 times, 6 cycles/exec
+  Node 12 (for.body3): 100 times, 9 cycles/exec
+  Node 13 (for.end): 10 times, 8 cycles/exec
+  Node 14 (for.end7): 1 times, 18 cycles/exec
+  Node 15 (entry): 1 times, 21 cycles/exec
+  Node 16 (for.end): 10 times, 8 cycles/exec
+  Node 17 (for.body): 10 times, 4 cycles/exec
+  Node 19 (if.end): 100 times, 6 cycles/exec
+  Node 20 (for.body3): 100 times, 8 cycles/exec
+  Node 21 (if.then): 100 times, 7 cycles/exec
+  Node 22 (for.end15): 1 times, 25 cycles/exec
+  Node 23 (entry): 100 times, 9 cycles/exec
+  Node 24 (entry): 100 times, 8 cycles/exec
+  Node 25 (entry): 100 times, 7 cycles/exec
+
+Edge execution counts:
+  Edge (0 -> 2): 1 times
+  Edge (2 -> 5): 1 times
+  Edge (3 -> 6): 1 times
+  Edge (4 -> 1): 1 times
+  Edge (5 -> 3): 1 times
+  Edge (6 -> 9): 1 times
+  Edge (7 -> 15): 1 times
+  Edge (8 -> 4): 1 times
+  Edge (9 -> 10): 1 times
+  Edge (10 -> 11): 10 times
+  Edge (11 -> 23): 100 times
+  Edge (12 -> 11): 90 times
+  Edge (12 -> 13): 10 times
+  Edge (13 -> 10): 9 times
+  Edge (13 -> 14): 1 times
+  Edge (14 -> 7): 1 times
+  Edge (15 -> 17): 1 times
+  Edge (16 -> 17): 9 times
+  Edge (16 -> 22): 1 times
+  Edge (17 -> 20): 10 times
+  Edge (19 -> 16): 10 times
+  Edge (19 -> 20): 90 times
+  Edge (20 -> 21): 100 times
+  Edge (21 -> 19): 100 times
+  Edge (22 -> 8): 1 times
+  Edge (23 -> 24): 100 times
+  Edge (24 -> 25): 100 times
+  Edge (25 -> 12): 100 times
+
+=== Abstract Analysis Verification ===
+Using Abstract ILP solver: HiGHS
+New Abstract Analysis WCET: 6347 cycles
+Legacy Analysis WCET:       6347 cycles
+[SUCCESS] WCET matches!

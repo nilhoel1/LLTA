@@ -3,6 +3,7 @@ add_llvm_library(lltaAnalysis
   GraphAdapter.cpp
   WorklistSolver.cpp
   PipelineAnalysis.cpp
+  InstructionCacheAnalysis.cpp
 
 
   DEPENDS
