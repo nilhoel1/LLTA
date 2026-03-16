@@ -1,5 +1,3 @@
-# LLTA - Low Level Timing Analysis
-
 LLTA is a timing analysis infrastructure built on top of LLVM. It operates on the Machine Intermediate Representation (MIR) to perform Worst-Case Execution Time (WCET) analysis. It functions as a drop-in replacement for `llc` (LLVM Static Compiler) with additional analysis passes injected into the code generation pipeline.
 
 ## Project Structure
