@@ -155,7 +155,7 @@ AbstractHighsSolver::solveWCET(const AbstractStateGraph &ASG) {
   highs.run();
 
   if (highs.getModelStatus() == HighsModelStatus::kOptimal) {
-    Result.WCET = highs.getObjectiveValue();
+    // Result.WCET = highs.getObjectiveValue();
   }
 
 #else

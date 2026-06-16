@@ -1,4 +1,5 @@
 #include "ILP/GurobiSolver.h"
+#include "RTTargets/ProgramGraph.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -435,7 +436,7 @@ GurobiSolver::~GurobiSolver() = default;
 bool GurobiSolver::isAvailable() const { return false; }
 
 ILPResult
-GurobiSolver::solveWCET(const MuArchStateGraph &MASG, unsigned EntryNodeId,
+GurobiSolver::solveWCET(const ProgramGraph &MASG, unsigned EntryNodeId,
                         unsigned ExitNodeId,
                         const std::map<unsigned, unsigned> &LoopBoundMap) {
   ILPResult Result;

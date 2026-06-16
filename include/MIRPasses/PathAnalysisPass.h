@@ -1,3 +1,4 @@
+#include "ILP/ILPSolver.h"
 #include "RTTargets/ProgramGraph.h"
 #include "TimingAnalysisResults.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -14,7 +15,6 @@
 #include "Analysis/AbstractStateGraph.h"
 #include "Analysis/GraphAdapter.h"
 #include "Analysis/WorklistSolver.h"
-#include "ILP/AbstractILPSolver.h"
 #include "RTTargets/MSP430/MSP430Pipeline.h"
 
 namespace llvm {
@@ -35,7 +35,7 @@ public:
   AbstractStateGraph ASG;
   MSP430Pipeline Pipeline;
   WorklistSolver AnalysisWorker;
-  std::unique_ptr<AbstractILPSolver> ABSolver;
+  std::unique_ptr<ILPSolver> ABSolver;
 
   bool runOnMachineBasicBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &F) override;
