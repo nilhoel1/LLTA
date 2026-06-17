@@ -187,29 +187,18 @@ bool ProgramGraph::dump2Dot(StringRef FileName) {
   std::vector<unsigned int> NodesWithoutFunction =
       getNodesNotInMBBMap(); // Nodes without a parent function
 
-  for (const auto &[MBB, NodeId] : MBBToNodeMap) {
-    const Function *F = nullptr;
-
-    // Check if BasicBlock is accessible and get parent function
-    if (MBB) {
-      const BasicBlock *BB = MBB->getBasicBlock();
-      if (BB) {
-        F = BB->getParent();
-      }
-    }
-
+  // Use NodeToFunctionMap (populated at insertion time) instead of walking
+  // MBBToNodeMap. The MBB pointers may dangle here because per-function
+  // MachineFunctions are released after their pass chain runs, but the IR
+  // Function pointers we captured remain valid for the module's lifetime.
+  for (const auto &[NodeId, F] : NodeToFunctionMap) {
     if (F) {
       FunctionToNodes[F].push_back(NodeId);
       if (DebugPrints)
-        outs() << "Mapping MBB " << MBB->getName() << " to Node ID " << NodeId
-               << " in Function " << F->getName() << "\n";
+        outs() << "Mapping Node ID " << NodeId << " in Function "
+               << F->getName() << "\n";
     } else {
       NodesWithoutFunction.push_back(NodeId);
-      if (!MBB) {
-        outs() << "Mapping nullptr MBB to Node ID " << NodeId
-               << " (no parent function)\n";
-        assert(false && "Should not reach here!");
-      }
     }
   }
 
@@ -303,6 +292,9 @@ bool ProgramGraph::fillGraphWithFunction(
     ExitNode = addNode(std::make_unique<MuArchState>(0, 0), nullptr);
     Nodes.at(EntryNode).setName(StringRef("Entry"));
     Nodes.at(ExitNode).setName(StringRef("Exit"));
+    EntryNodeId = EntryNode;
+    HasEntryNode = true;
+    StartFunction = &MF.getFunction();
   }
 
   // Fill MuArchGraph Nodes
@@ -315,6 +307,7 @@ bool ProgramGraph::fillGraphWithFunction(
     unsigned Latency = (It != MBBLatencyMap.end()) ? It->second : 0;
     addNode(std::make_unique<MuArchState>(Latency, Latency), &MBB);
     CurrentNode = MBBToNodeMap[&MBB];
+    NodeToFunctionMap[CurrentNode] = &MF.getFunction();
 
     // Check if this MBB is a loop header and set loop bounds
     auto LoopIt = LoopBoundMap.find(&MBB);
@@ -418,6 +411,14 @@ void ProgramGraph::fillGraph(
 bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
   // Process all captured call sites
   for (const auto &[CallNode, Callee] : CallSites) {
+    // Never wire calls *into* the start function. It is the analysis boundary:
+    // it is entered only via the synthetic Entry node and left only via the
+    // synthetic Exit node. Wiring such a call site (an external caller of the
+    // start function) would add a return edge from the start function back into
+    // its caller, dragging the caller's (possibly unbounded) loops into the
+    // reachable subgraph.
+    if (Callee == StartFunction)
+      continue;
     // Use the maps to find entry and return nodes
     if (FunctionToEntryNodeMap.find(Callee) != FunctionToEntryNodeMap.end()) {
       unsigned CaleeNode = FunctionToEntryNodeMap[Callee];
@@ -439,6 +440,54 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
                << " not found in FunctionToEntryNodeMap\n";
     }
   }
+  // Prune nodes that are not reachable from the Entry node. Because every
+  // MachineFunction in the module is accumulated into this single graph, the
+  // functions that are not part of the start function's call subgraph (and
+  // their possibly unbounded loops) would otherwise remain as disconnected
+  // components and make the WCET ILP unbounded.
+  if (HasEntryNode) {
+    // Forward BFS from the Entry node over successor edges.
+    std::set<unsigned> Reachable;
+    std::vector<unsigned> Worklist;
+    Reachable.insert(EntryNodeId);
+    Worklist.push_back(EntryNodeId);
+    while (!Worklist.empty()) {
+      unsigned Cur = Worklist.back();
+      Worklist.pop_back();
+      // getSuccessors() returns a copy, so it is safe to traverse here.
+      for (unsigned Succ : Nodes.at(Cur).getSuccessors()) {
+        if (Reachable.insert(Succ).second)
+          Worklist.push_back(Succ);
+      }
+    }
+
+    // Collect the unreachable nodes first to avoid mutating Nodes while
+    // iterating over it.
+    std::vector<unsigned> ToRemove;
+    for (const auto &[Id, Nd] : Nodes) {
+      if (Reachable.find(Id) == Reachable.end())
+        ToRemove.push_back(Id);
+    }
+
+    for (unsigned Id : ToRemove) {
+      // Detach all edges so removeNode()'s isFree() assertion holds. Iterate
+      // over copies (getSuccessors/getPredecessors return by value) because
+      // removeEdge mutates the underlying sets. A reachable node can never
+      // point to an unreachable one, so only this node's own edges exist.
+      for (unsigned Succ : Nodes.at(Id).getSuccessors())
+        removeEdge(Id, Succ);
+      for (unsigned Pred : Nodes.at(Id).getPredecessors())
+        removeEdge(Pred, Id);
+      NodeToFunctionMap.erase(Id);
+      removeNode(Id);
+    }
+
+    if (Verbose)
+      outs() << "Pruned " << ToRemove.size()
+             << " node(s) unreachable from the start function; "
+             << Nodes.size() << " node(s) remain.\n";
+  }
+
   // outs() << "Printing Dot file \n";
   dump2Dot(StringRef("ProgramGraph.dot"));
   return false;

@@ -518,6 +518,10 @@ unsigned int InstructionLatencyPass::getMSP430Latency(const MachineInstr &I) {
   case TargetOpcode::DBG_VALUE_LIST:
     return 0;
 
+  //Inline ASM
+  case TargetOpcode::INLINEASM:
+    return 1; //TODO We just assume 1x nop all the time
+
   default:
     errs() << "No Latency assigned to Inst: " << I << "\n";
     assert(0 && "Instruction has no Latency!");

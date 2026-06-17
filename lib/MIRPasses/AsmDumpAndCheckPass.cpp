@@ -429,6 +429,7 @@ void AsmDumpAndCheckPass::checkMSP430Instruction(const MachineInstr &I) {
   case TargetOpcode::DBG_INSTR_REF:
   case TargetOpcode::DBG_PHI:
   case TargetOpcode::DBG_VALUE_LIST:
+  case TargetOpcode::INLINEASM:
     // Debug instructions can be ignored for timing analysis
     break;
   default:

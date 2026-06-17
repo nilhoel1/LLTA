@@ -63,7 +63,7 @@ $(BUILD_DIR)/$(TEST).S: $(BUILD_DIR)/$(TEST).opt.ll
 	@echo "LLTA-LLC $< -> $@"
 	@$(IR_TOOLCHAIN)/llta -llc $(LLCFLAGS) $< -o $@
 	@echo "FIXUP    $@"
-	@sed -i '' 's/call[ 	]*#/call /g' $@
+	@sed 's/call[ 	]*#/call /g' $@ > $@.tmp && mv $@.tmp $@
 	@grep -v '^[ 	]*\.cfi' $@ > $@.tmp && mv $@.tmp $@
 	@grep -v '^[ 	]*\.file' $@ > $@.tmp && mv $@.tmp $@
 	@grep -v '^[ 	]*\.loc' $@ > $@.tmp && mv $@.tmp $@

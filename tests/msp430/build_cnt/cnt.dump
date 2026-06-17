@@ -433,7 +433,7 @@ Disassembly of section .debug_info:
   1e:	1c 40 00 00 	mov	0x0000,	r12	;PC rel. 0x0020
   22:	da 00       	cmpa	r0,	r10	;
   24:	00 00       	beq			
-  26:	02 f8       	and	r8,	r2	;
+  26:	02 e9       	xor	r9,	r2	;
   28:	00 00       	beq			
   2a:	00 37       	jge	$-510    	;abs 0xfffffffffffffe2c
   2c:	00 00       	beq			
@@ -441,9 +441,9 @@ Disassembly of section .debug_info:
   30:	2f 05 03 c8 	mova	&378883,r15	;0x5c803
   34:	1c 00       	mova	@r0+,	r12	;
   36:	00 03       	bra	@r3		;
-  38:	aa 00 00 00 	adda	#0,	r10	;
+  38:	9b 00 00 00 	cmpa	#0,	r11	;
   3c:	05 02       	mova	@r2,	r5	;
-  3e:	02 ae       	dadd	r14,	r2	;
+  3e:	02 9f       	cmp	r15,	r2	;
   40:	00 00       	beq			
   42:	00 4f       	br	r15		;
   44:	00 00       	beq			
@@ -453,8 +453,7 @@ Disassembly of section .debug_info:
   4e:	00 04       	bra	@r4		;
   50:	5a 00       	rrcm	#1,	r10	;
   52:	00 00       	beq			
-  54:	c8 00       	mova	r0,	r8	;
-  56:	00 00       	beq			
+  54:	b9 00 00 00 	suba	#0,	r9	;
   58:	01 19 05 37 	rpt #2 { jgex.?	$-500    	;abs 0xfffffffffffffe66, Warning: reserved use of A/L and B/W bits detected
   5c:	00 00       	beq			
   5e:	00 06       	bra	@r6		;
@@ -462,17 +461,17 @@ Disassembly of section .debug_info:
   64:	0a 06       	mova	@r6,	r10	;
   66:	6c 00 00 00 	mova	r0,	&786432	; 0xc0000
   6a:	0a 00       	mova	@r0,	r10	;
-  6c:	07 b4       	bit	r4,	r7	;
+  6c:	07 a5       	dadd	r5,	r7	;
   6e:	00 00       	beq			
   70:	00 08       	bra	@r8		;
   72:	07 02       	mova	@r2,	r7	;
-  74:	cf 00       	mova	r0,	r15	;
+  74:	c0 00       	mova	r0,	r0	;
   76:	00 00       	beq			
   78:	37 00 00 00 	mova	0(r0),	r7	;
   7c:	01 33       	jn	$-508    	;abs 0xfffffffffffffe80
   7e:	05 03       	mova	@r3,	r5	;
   80:	ca 1c 00 00 	rpt r10 { beqx			
-  84:	02 d8       	bis	r8,	r2	;
+  84:	02 c9       	bic	r9,	r2	;
   86:	00 00       	beq			
   88:	00 37       	jge	$-510    	;abs 0xfffffffffffffe8a
   8a:	00 00       	beq			
@@ -480,13 +479,13 @@ Disassembly of section .debug_info:
   8e:	33 05 03 ce 	mova	-12797(r5),r3	;0xffffce03
   92:	1c 00       	mova	@r0+,	r12	;
   94:	00 02       	bra	@r2		;
-  96:	e1 00       	adda	r0,	r1	;
+  96:	d2 00       	cmpa	r0,	r2	;
   98:	00 00       	beq			
   9a:	37 00 00 00 	mova	0(r0),	r7	;
   9e:	01 33       	jn	$-508    	;abs 0xfffffffffffffea2
   a0:	05 03       	mova	@r3,	r5	;
   a2:	cc 1c 00 00 	rpt r12 { beqx			
-  a6:	02 e8       	xor	r8,	r2	;
+  a6:	02 d9       	bis	r9,	r2	;
   a8:	00 00       	beq			
   aa:	00 37       	jge	$-510    	;abs 0xfffffffffffffeac
   ac:	00 00       	beq			
@@ -498,7 +497,7 @@ Disassembly of section .debug_info:
   bc:	10 00       	bra	@r0+		;
   be:	00 00       	beq			
   c0:	01 51       	rla	r1		;
-  c2:	ef 00       	adda	r0,	r15	;
+  c2:	e0 00       	adda	r0,	r0	;
   c4:	00 00       	beq			
   c6:	01 39       	jl	$+516    	;abs 0x2ca
   c8:	37 00 00 00 	mova	0(r0),	r7	;
@@ -507,7 +506,7 @@ Disassembly of section .debug_info:
   d0:	00 08       	bra	@r8		;
   d2:	00 00       	beq			
   d4:	00 01       	bra	@r1		;
-  d6:	51 f4 00 00 	and.b	0(r4),	r1	;
+  d6:	51 e5 00 00 	xor.b	0(r5),	r1	;
   da:	00 01       	bra	@r1		;
   dc:	94 37       	jge	$-214    	;abs 0x6
   de:	00 00       	beq			
@@ -516,13 +515,13 @@ Disassembly of section .debug_info:
   e6:	14 00       	mova	@r0+,	r4	;
   e8:	00 00       	beq			
   ea:	01 51       	rla	r1		;
-  ec:	fd 00       	suba	r0,	r13	;
+  ec:	ee 00       	adda	r0,	r14	;
   ee:	00 00       	beq			
   f0:	01 4d       	mov	r13,	r1	;
   f2:	37 00 00 00 	mova	0(r0),	r7	;
   f6:	0a 00       	mova	@r0,	r10	;
   f8:	00 00       	beq			
-  fa:	00 ae       	dadd	r14,	r0	;
+  fa:	00 9f       	cmp	r15,	r0	;
   fc:	00 00       	beq			
   fe:	00 01       	bra	@r1		;
  100:	4d f5       	and.b	r5,	r13	;
@@ -530,15 +529,14 @@ Disassembly of section .debug_info:
  104:	00 0b       	bra	@r11		;
  106:	1e 00       	mova	@r0+,	r14	;
  108:	00 00       	beq			
- 10a:	1f 01       	mova	@r1+,	r15	;
+ 10a:	10 01       	reta			;
  10c:	00 00       	beq			
  10e:	01 51       	rla	r1		;
  110:	06 02       	mova	@r2,	r6	;
  112:	00 00       	beq			
  114:	0b 34       	jge	$+24     	;abs 0x12c
  116:	00 00       	beq			
- 118:	00 2e       	.word	0x2e00;	????
- 11a:	01 00       	mova	@r0,	r1	;
+ 118:	00 1f 01 00 	movax	@r0,	r1	;
  11c:	00 01       	bra	@r1		;
  11e:	51 06       	rlam	#2,	r1	;
  120:	02 00       	mova	@r0,	r2	;
@@ -548,28 +546,27 @@ Disassembly of section .debug_info:
  128:	00 3a       	.word	0x3a00;	????
  12a:	00 00       	beq			
  12c:	00 01       	bra	@r1		;
- 12e:	51 02       	rlam	#1,	r1	;
- 130:	01 00       	mova	@r0,	r1	;
+ 12e:	51 f3       	and.b	#1,	r1	;r3 As==01
+ 130:	00 00       	beq			
  132:	00 01       	bra	@r1		;
  134:	79 37       	jge	$-268    	;abs 0x28
  136:	00 00       	beq			
  138:	00 0a       	bra	@r10		;
  13a:	4a 00       	rrcm.a	#1,	r10	;
  13c:	00 00       	beq			
- 13e:	ae 00 00 00 	adda	#0,	r14	;
+ 13e:	9f 00 00 00 	cmpa	#0,	r15	;
  142:	01 79       	subc	r9,	r1	;
  144:	f5 01       	suba	r1,	r5	;
  146:	00 00       	beq			
  148:	0c 01       	mova	@r1,	r12	;
- 14a:	59 37       	jge	$-332    	;abs 0xfffffffffffffffe
+ 14a:	59 28       	jnc	$+180    	;abs 0x1fe
  14c:	01 00       	mova	@r0,	r1	;
  14e:	00 01       	bra	@r1		;
  150:	7d 37       	jge	$-260    	;abs 0x4c
  152:	00 00       	beq			
  154:	00 0b       	bra	@r11		;
  156:	68 00 00 00 	mova	r0,	&524288	; 0x80000
- 15a:	42 01       	rram.a	#1,	r2	;
- 15c:	00 00       	beq			
+ 15a:	33 01 00 00 	mova	0(r1),	r3	;
  15e:	01 7d       	subc	r13,	r1	;
  160:	37 00 00 00 	mova	0(r0),	r7	;
  164:	00 0d       	bra	@r13		;
@@ -577,24 +574,23 @@ Disassembly of section .debug_info:
  16a:	56 00       	rrcm	#1,	r6	;
  16c:	00 00       	beq			
  16e:	01 51       	rla	r1		;
- 170:	0d 01       	mova	@r1,	r13	;
+ 170:	fe 00       	suba	r0,	r14	;
  172:	00 00       	beq			
  174:	01 a0       	dadd	r0,	r1	;
  176:	0a a0       	dadd	r0,	r10	;
  178:	00 00       	beq			
- 17a:	00 ae       	dadd	r14,	r0	;
+ 17a:	00 9f       	cmp	r15,	r0	;
  17c:	00 00       	beq			
  17e:	00 01       	bra	@r1		;
  180:	a0 f5 01 00 	and	@r5,	0x0001	; PC rel. 0x0183
  184:	00 0b       	bra	@r11		;
  186:	b3 00 00 00 	suba	#0,	r3	;
- 18a:	4d 01       	rram.a	#1,	r13	;
- 18c:	00 00       	beq			
+ 18a:	3e 01 00 00 	mova	0(r1),	r14	;
  18e:	01 a8       	dadd	r8,	r1	;
  190:	37 00 00 00 	mova	0(r0),	r7	;
  194:	0b d3       	bis	#0,	r11	;r3 As==00
  196:	00 00       	beq			
- 198:	00 54       	add	r4,	r0	;
+ 198:	00 45       	br	r5		;
  19a:	01 00       	mova	@r0,	r1	;
  19c:	00 01       	bra	@r1		;
  19e:	aa 37       	jge	$-170    	;abs 0xf4
@@ -602,25 +598,26 @@ Disassembly of section .debug_info:
  1a2:	00 0b       	bra	@r11		;
  1a4:	f3 00       	suba	r0,	r3	;
  1a6:	00 00       	beq			
- 1a8:	5b 01       	rram	#1,	r11	;
+ 1a8:	4c 01       	rram.a	#1,	r12	;
  1aa:	00 00       	beq			
  1ac:	01 ac       	dadd	r12,	r1	;
  1ae:	37 00 00 00 	mova	0(r0),	r7	;
  1b2:	0b 13       	reti			;return from interupt
  1b4:	01 00       	mova	@r0,	r1	;
- 1b6:	00 60       	rlc	r0		;
+ 1b6:	00 51       	add	r1,	r0	;
  1b8:	01 00       	mova	@r0,	r1	;
  1ba:	00 01       	bra	@r1		;
  1bc:	ae 37       	jge	$-162    	;abs 0x11a
  1be:	00 00       	beq			
  1c0:	00 0b       	bra	@r11		;
  1c2:	33 01 00 00 	mova	0(r1),	r3	;
- 1c6:	65 01 00 00 	mova	r1,	&327680	; 0x50000
+ 1c6:	56 01       	rram	#1,	r6	;
+ 1c8:	00 00       	beq			
  1ca:	01 a4       	dadd	r4,	r1	;
  1cc:	37 00 00 00 	mova	0(r0),	r7	;
  1d0:	0b 53       	add	#0,	r11	;r3 As==00
  1d2:	01 00       	mova	@r0,	r1	;
- 1d4:	00 6b       	addc	r11,	r0	;
+ 1d4:	00 5c       	add	r12,	r0	;
  1d6:	01 00       	mova	@r0,	r1	;
  1d8:	00 01       	bra	@r1		;
  1da:	a4 37       	jge	$-182    	;abs 0x124
@@ -630,7 +627,8 @@ Disassembly of section .debug_info:
  1e2:	40 00       	rrcm.a	#1,	r0	;
  1e4:	00 1e 00 00 	beqx			
  1e8:	00 01       	bra	@r1		;
- 1ea:	51 11 01 00 	rra.b	1(r1)		;
+ 1ea:	51 02       	rlam	#1,	r1	;
+ 1ec:	01 00       	mova	@r0,	r1	;
  1ee:	00 01       	bra	@r1		;
  1f0:	f9 37       	jge	$-12     	;abs 0x1e4
  1f2:	00 00       	beq			
@@ -642,8 +640,7 @@ Disassembly of section .debug_info:
  1fe:	00 06       	bra	@r6		;
  200:	6c 00 00 00 	mova	r0,	&786432	; 0xc0000
  204:	0a 00       	mova	@r0,	r10	;
- 206:	03 29       	jnc	$+520    	;abs 0x40e
- 208:	01 00       	mova	@r0,	r1	;
+ 206:	03 1a 01 00 	rpt #4 { movax	@r0,	r1	;
  20a:	00 05       	bra	@r5		;
  20c:	04 00       	mova	@r0,	r4	;
 

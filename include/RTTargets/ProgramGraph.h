@@ -208,6 +208,33 @@ public:
   std::map<const MachineBasicBlock *, unsigned> MBBToNodeMap;
 
   /**
+   * Map from Node id to its parent IR Function. Captured at insertion time
+   * because the corresponding MachineBasicBlock may be freed before dump2Dot
+   * runs (MachineFunctions are released after their per-function pass chain
+   * finishes), but IR Function pointers are stable for the module's lifetime.
+   */
+  std::map<unsigned, const Function *> NodeToFunctionMap;
+
+  /**
+   * Whether a synthetic Entry node has been created (i.e. a start function was
+   * seen). Used as the root for reachability pruning in finalize().
+   */
+  bool HasEntryNode = false;
+
+  /**
+   * Id of the synthetic Entry node created for the start function.
+   */
+  unsigned EntryNodeId = 0;
+
+  /**
+   * The start function of the analysis (the one given the synthetic Entry/Exit
+   * nodes). It is the analysis boundary: entered only via Entry and left only
+   * via Exit, so call sites that call into it (external callers) must not be
+   * wired during finalize().
+   */
+  const Function *StartFunction = nullptr;
+
+  /**
    * Map that stores the entry node for each Function.
    */
   std::map<const Function *, unsigned> FunctionToEntryNodeMap;
