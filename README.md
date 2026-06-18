@@ -244,7 +244,12 @@ ninja LoopBoundPlugin
 - `-march=<arch>`: Specify target architecture (e.g., `msp430`).
 - `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction, the static targets of jumps/calls, and the program's data/heap objects.
 - `-start-function=<name>`: Entry point for analysis (default: `main`).
-- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Stored for later FRAM-aware analysis; does not change timing yet.
+- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Identifies which instruction fetches are FRAM-resident for the FRAM timing models below.
+- `-fram-wait-states=<n>`: MSP430 FRAM wait states charged per FRAM instruction-fetch word (no-cache model; `0` disables, the default). Typical FR5994 values: ≤8 MHz → 0, >8–16 MHz → 1, >16–24 MHz → 2. Requires `-fram-start`.
+- `-fram-cache`: Enable the FRAM read-cache must-analysis (a sound refinement of `-fram-wait-states`: charges the wait-state penalty only for fetches not provably cache hits). Supersedes the no-cache model when set. Requires `-fram-wait-states > 0` and `-fram-start`.
+- `-fram-cache-policy=<unknown|lru|fifo>`: Replacement-policy module for the must-analysis. `unknown` (default) is adversarial and sound for the undocumented FR5994 policy; `lru`/`fifo` are tighter but sound only if the device matches that policy.
+- `-fram-cache-sets`, `-fram-cache-ways`, `-fram-cache-line-bytes`: Cache geometry (FR5994 defaults `2`, `2`, `8`).
+- `-fram-cache-verbose`: Additionally run a sound may-analysis and report accesses proven never cached (`always-miss`). Diagnostic only; does not change the WCET.
 - `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses with resolved jump/call targets, the parsed data-object table, encoding cross-check mismatches and offset repairs) for the analysed functions.
 
 ### 2. Preparing Input Files
@@ -502,7 +507,12 @@ ninja LoopBoundPlugin
 - `-march=<arch>`: Specify target architecture (e.g., `msp430`).
 - `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction, the static targets of jumps/calls, and the program's data/heap objects.
 - `-start-function=<name>`: Entry point for analysis (default: `main`).
-- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Stored for later FRAM-aware analysis; does not change timing yet.
+- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Identifies which instruction fetches are FRAM-resident for the FRAM timing models below.
+- `-fram-wait-states=<n>`: MSP430 FRAM wait states charged per FRAM instruction-fetch word (no-cache model; `0` disables, the default). Typical FR5994 values: ≤8 MHz → 0, >8–16 MHz → 1, >16–24 MHz → 2. Requires `-fram-start`.
+- `-fram-cache`: Enable the FRAM read-cache must-analysis (a sound refinement of `-fram-wait-states`: charges the wait-state penalty only for fetches not provably cache hits). Supersedes the no-cache model when set. Requires `-fram-wait-states > 0` and `-fram-start`.
+- `-fram-cache-policy=<unknown|lru|fifo>`: Replacement-policy module for the must-analysis. `unknown` (default) is adversarial and sound for the undocumented FR5994 policy; `lru`/`fifo` are tighter but sound only if the device matches that policy.
+- `-fram-cache-sets`, `-fram-cache-ways`, `-fram-cache-line-bytes`: Cache geometry (FR5994 defaults `2`, `2`, `8`).
+- `-fram-cache-verbose`: Additionally run a sound may-analysis and report accesses proven never cached (`always-miss`). Diagnostic only; does not change the WCET.
 - `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses with resolved jump/call targets, the parsed data-object table, encoding cross-check mismatches and offset repairs) for the analysed functions.
 
 ### 2. Preparing Input Files
@@ -548,6 +558,20 @@ LLTA injects several passes into the backend pipeline:
 ## Testing
 
 Tests are located in `LLTA/tests/`.
+
+Unit tests for the modular cache analysis (`include/Analysis/Cache/`) live in
+`tests/unit/`. Build and run them with either:
+
+```bash
+cmake --build <build-dir> --target check-llta-cache   # builds + runs directly
+ctest --test-dir <build-dir>/tools/LLTA -R LLTACacheModuleTests
+```
+
+The end-to-end WCET regression (in-tree MSP430 cases) is:
+
+```bash
+python3 LLTA/tests/regression_test.py
+```
 
 To generate loop bounds for a test case:
 

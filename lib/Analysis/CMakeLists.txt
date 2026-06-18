@@ -4,6 +4,8 @@ add_llvm_library(lltaAnalysis
   WorklistSolver.cpp
   PipelineAnalysis.cpp
   InstructionCacheAnalysis.cpp
+  Cache/CacheAnalysis.cpp
+  Cache/FRAMAccessMapper.cpp
 
 
   DEPENDS

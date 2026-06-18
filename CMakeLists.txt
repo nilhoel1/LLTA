@@ -92,6 +92,10 @@ add_llvm_tool(llta
 
 add_subdirectory(lib)
 
+# Unit tests for the modular cache analysis.
+enable_testing()
+add_subdirectory(tests/unit)
+
 target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 # Configure RPATH to find shared libraries at runtime

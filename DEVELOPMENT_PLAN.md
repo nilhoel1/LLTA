@@ -12,6 +12,23 @@
 - [x] Link LLVM IR analyses with custom LLTA analyses. (`FRAMWaitStatePass` consumes
   the resolved `InstructionAddressMap` + `FRAMStart` and adds MSP430 FRAM fetch
   wait-states into the WCET latency path; gated by `-fram-wait-states`.)
+- [x] FRAM read-cache analysis (FR5xx). A modular, reusable cache analysis in
+  the abstract-interpretation framework (`include/Analysis/Cache/`):
+  `CacheGeometry`, plug-and-play `ReplacementPolicy` modules
+  (`UnknownPolicy` — adversarial/sound must default; `LRUPolicy`, `FIFOPolicy` —
+  age-based, must+may), a `CacheAccessMapper`, and the generic `CacheAnalysis`
+  engine (parameterized by `AnalysisKind` Must/May) driven over the
+  `WorklistSolver` CFG fixpoint. `FRAMCacheAnalysisPass` specializes it for
+  MSP430 (`FRAMAccessMapper`: FRAM fetch words + SRAM/FRAM data-access barriers):
+  the **must-analysis** folds the cache-aware fetch penalty into `MBBLatencyMap`
+  (gated by `-fram-cache`, `-fram-cache-policy`, `-fram-cache-{sets,ways,line-bytes}`;
+  supersedes `FRAMWaitStatePass`), and under `-fram-cache-verbose` a sound
+  **may-analysis** (LRU-may at the real associativity, over-approximating any
+  policy) reports `always-miss` accesses (diagnostic only; no WCET change).
+  Verified on msp430-freertos: e.g. taskCnt 6329 (no FRAM) ≤ 7708 (cache) ≤ 10227
+  (no-cache), 100% resolver coverage retained. The modules have standalone unit
+  tests (`tests/unit/CacheModuleTests.cpp`; run via `ctest`/the `check-llta-cache`
+  build target).
 
 ## 2. ESP32-C6 Pipeline Analysis
 Implement a cycle-accurate timing model of the Espressif ESP32-C6 (RISC-V HP Core) within the LLTA framework.
