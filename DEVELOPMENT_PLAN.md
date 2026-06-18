@@ -6,8 +6,12 @@
 
 - [x] Add MSP430 Toolchain , to build examples here.
 - [x] Extract static jump/call targets and data/heap objects (name/address/size/section) from the dump in `AdressResolverPass`, stored on `TimingAnalysisResults` (foundation; no consumer yet).
-- [ ] Double Check completenes of `AdressResolverPass`.
-- [ ] Link LLVM IR analyses with custom LLTA analyses.
+- [x] Double Check completenes of `AdressResolverPass`. (Coverage self-report under
+  `-address-resolver-verbose`: 100% of analysed-function instructions addressed on
+  both the in-tree cases and the msp430-freertos target, 0 re-sync/mismatch/leftover.)
+- [x] Link LLVM IR analyses with custom LLTA analyses. (`FRAMWaitStatePass` consumes
+  the resolved `InstructionAddressMap` + `FRAMStart` and adds MSP430 FRAM fetch
+  wait-states into the WCET latency path; gated by `-fram-wait-states`.)
 
 ## 2. ESP32-C6 Pipeline Analysis
 Implement a cycle-accurate timing model of the Espressif ESP32-C6 (RISC-V HP Core) within the LLTA framework.

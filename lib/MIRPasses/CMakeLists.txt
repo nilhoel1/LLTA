@@ -5,6 +5,7 @@ add_llvm_library(lltaMPasses
   TimingAnalysisPasses.cpp
   AdressResolverPass.cpp
   InstructionLatencyPass.cpp
+  FRAMWaitStatePass.cpp
   PathAnalysisPass.cpp
   MachineLoopBoundAgregatorPass.cpp
   FillMuGraphPass.cpp

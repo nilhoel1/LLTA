@@ -50,3 +50,12 @@ cl::opt<bool> AddressResolverVerbose(
              "encoding cross-check mismatch and offset repair, with the "
              "function, instruction, expected vs. actual bytes and assembly."),
     cl::cat(LLTA));
+
+cl::opt<unsigned> FRAMWaitStates(
+    "fram-wait-states", cl::init(0),
+    cl::desc("MSP430 FRAM wait states added per FRAM instruction-fetch access "
+             "(one access per 16-bit code word). 0 disables the model "
+             "(default). Typical FR5994 values: <=8 MHz -> 0, >8-16 MHz -> 1, "
+             ">16-24 MHz -> 2. Requires -fram-start to identify the FRAM "
+             "region."),
+    cl::cat(LLTA));

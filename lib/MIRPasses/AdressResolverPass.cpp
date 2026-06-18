@@ -19,6 +19,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
@@ -40,7 +41,24 @@ static constexpr size_t ResyncWindow = 32;
 AdressResolverPass::AdressResolverPass(TimingAnalysisResults &TAR)
     : MachineFunctionPass(ID), TAR(TAR) {}
 
-bool AdressResolverPass::doFinalization(Module &M) { return false; }
+bool AdressResolverPass::doFinalization(Module &M) {
+  // Verify-only coverage report over the functions LLTA actually analyses.
+  // Gated behind -address-resolver-verbose so default runs are unchanged.
+  if (AddressResolverVerbose) {
+    double Pct = Cov.CodeMIs ? (100.0 * static_cast<double>(Cov.ResolvedMIs) /
+                                static_cast<double>(Cov.CodeMIs))
+                             : 100.0;
+    outs() << "[addr-resolver] coverage (analysed functions): " << Cov.Functions
+           << " function(s) resolved, " << Cov.FunctionsNoDumpEntry
+           << " without a dump entry; " << Cov.ResolvedMIs << "/" << Cov.CodeMIs
+           << " instructions addressed (" << format("%.2f", Pct) << "%), "
+           << Cov.BranchTargets << " branch/call target(s) attached; "
+           << Cov.ResyncEvents << " re-sync, " << Cov.MismatchEvents
+           << " unrecovered mismatch, " << Cov.LeftoverEvents
+           << " leftover-at-end event(s).\n";
+  }
+  return false;
+}
 
 void AdressResolverPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
@@ -179,6 +197,8 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
 
   auto It = FunctionEntryAddr.find(F.getName().str());
   if (It == FunctionEntryAddr.end()) {
+    if (Diagnose)
+      ++Cov.FunctionsNoDumpEntry;
     if (AddressResolverVerbose && Diagnose)
       outs() << "[addr-resolver] no dump entry for analysed function '"
              << F.getName() << "', skipping address resolution\n";
@@ -203,6 +223,8 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
               return A->Address < B->Address;
             });
 
+  if (Diagnose)
+    ++Cov.Functions;
   alignFunction(F, Range, Diagnose);
   return false;
 }
@@ -547,6 +569,8 @@ void AdressResolverPass::alignFunction(
       if (!isCodeEmitting(MI))
         continue;
       ++MiIdx;
+      if (Diagnose)
+        ++Cov.CodeMIs;
 
       if (DumpIdx >= Range.size()) {
         ++Warnings;
@@ -584,6 +608,8 @@ void AdressResolverPass::alignFunction(
           ++K;
         if (K < Lim) {
           ++Warnings;
+          if (Diagnose)
+            ++Cov.ResyncEvents;
           if (V)
             errs() << "[addr-resolver] " << FName << ": re-synced at MI #"
                    << MiIdx << ", skipped " << (K - DumpIdx)
@@ -594,6 +620,8 @@ void AdressResolverPass::alignFunction(
           DumpIdx = K;
         } else {
           ++Warnings;
+          if (Diagnose)
+            ++Cov.MismatchEvents;
           if (V) {
             errs() << "[addr-resolver] " << FName << ": encoding mismatch at MI #"
                    << MiIdx << " (dump 0x"
@@ -608,8 +636,13 @@ void AdressResolverPass::alignFunction(
       }
 
       TAR.setInstructionAddress(&MI, Range[DumpIdx]->Address);
-      if (Range[DumpIdx]->HasTarget)
+      if (Diagnose)
+        ++Cov.ResolvedMIs;
+      if (Range[DumpIdx]->HasTarget) {
         TAR.setBranchTarget(&MI, Range[DumpIdx]->TargetAddress);
+        if (Diagnose)
+          ++Cov.BranchTargets;
+      }
       if (V) {
         outs() << "[addr-resolver]   0x"
                << Twine::utohexstr(Range[DumpIdx]->Address) << "  "
@@ -624,6 +657,8 @@ void AdressResolverPass::alignFunction(
 
   if (DumpIdx != Range.size()) {
     ++Warnings;
+    if (Diagnose)
+      ++Cov.LeftoverEvents;
     if (V)
       errs() << "[addr-resolver] " << FName << ": " << (Range.size() - DumpIdx)
              << " dump entr(y/ies) left unassigned at end of function "

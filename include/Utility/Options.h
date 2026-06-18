@@ -34,4 +34,10 @@ extern llvm::cl::opt<std::string> FRAMStartAddress;
  */
 extern llvm::cl::opt<bool> AddressResolverVerbose;
 
+/**
+ * Number of MSP430 FRAM wait states added per FRAM instruction-fetch access
+ * (-fram-wait-states). 0 disables the FRAM wait-state model (default).
+ */
+extern llvm::cl::opt<unsigned> FRAMWaitStates;
+
 #endif

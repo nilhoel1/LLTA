@@ -112,6 +112,20 @@ private:
   // --- alignment ---
   void alignFunction(MachineFunction &F,
                      std::vector<const DumpInstruction *> &Range, bool Diagnose);
+
+  // --- coverage statistics (verify-only; printed under -address-resolver-verbose) ---
+  // Accumulated only over the functions LLTA actually analyses, so the numbers
+  // reflect what the timing analysis depends on, not the whole linked ELF.
+  struct Coverage {
+    unsigned Functions = 0;            ///< analysed functions with a dump entry
+    unsigned FunctionsNoDumpEntry = 0; ///< analysed functions missing a dump entry
+    uint64_t CodeMIs = 0;              ///< code-emitting MIs seen
+    uint64_t ResolvedMIs = 0;          ///< MIs that received an address
+    uint64_t BranchTargets = 0;        ///< control-flow MIs that received a target
+    unsigned ResyncEvents = 0;         ///< forward re-syncs (likely inline asm)
+    unsigned MismatchEvents = 0;       ///< byte mismatches with no re-sync found
+    unsigned LeftoverEvents = 0;       ///< functions with dump entries left over
+  } Cov;
 };
 } // namespace llvm
 
