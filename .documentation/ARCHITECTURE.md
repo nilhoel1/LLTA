@@ -13,7 +13,7 @@ The `llta` tool executes the following MachineFunction passes in order (defined 
 
 1. **`CallSplitterPass`**: Prepares the CFG by splitting calls if necessary.
 2. **`AsmDumpAndCheckPass`**: Dumps assembly for verification.
-3. **`AdressResolverPass`**: Resolves symbol addresses.
+3. **`AdressResolverPass`**: Discovers real per-instruction addresses from the `-dump-file` disassembly (see Key Components).
 4. **`InstructionLatencyPass`**: Assigns base latencies to instructions using Target models (e.g., MSP430).
 5. **`MachineLoopBoundAgregatorPass`**: Collects loop bounds.
 6. **`FillMuGraphPass`**: Builds the Program Graph (`ProgramGraph`).
@@ -24,6 +24,33 @@ The `llta` tool executes the following MachineFunction passes in order (defined 
 > **Debug Mode**: If the `DebugIR` option is enabled, the entire pipeline is replaced by a single **`DebugIRPass`** which dumps the IR for inspection.
 
 ## Key Components
+
+### AdressResolverPass
+Resolves the real absolute address of every analysed instruction by aligning the
+`objdump -Dl` disassembly (passed via `-dump-file`) with the Machine IR.
+
+- **Parsing**: the dump is parsed into an ordered list of instructions (merging
+  multi-word continuation lines) plus a map of real function entries, identified by
+  the `<name>:` header immediately followed by a `name():` line (internal `.Loc`/
+  `.Ltmp` labels are not function entries).
+- **Alignment**: for each `MachineFunction`, the dump instructions in its address
+  range `[entry, next-entry)` are zipped 1:1 with the function's code-emitting MIs
+  (debug/CFI pseudo-instructions are skipped). The result is an
+  `MachineInstr* → uint64_t` map stored on `TimingAnalysisResults`
+  (`getInstructionAddress`/`hasInstructionAddress`).
+- **Encoding cross-check & repair**: "simple" instructions (register/immediate
+  operands only) are re-encoded with the target `MCCodeEmitter`; when they carry no
+  fixups their bytes must equal the dump bytes. A same-length byte difference is a
+  warning; a length difference is an equivalent-encoding form and is ignored. On
+  drift (e.g. an inline-asm body of unknown length) the walk searches forward to the
+  next matching anchor and re-synchronises. Cross-check failures are **warnings only,
+  never fatal**; addresses are still assigned positionally.
+- **Scope**: addresses are resolved for all functions, but diagnostics are emitted
+  only for the call-graph-reachable set from the start function (`-address-resolver-verbose`
+  for detail).
+- **FRAM**: `-fram-start=<hex>` is parsed once and stored on `TimingAnalysisResults`
+  (`getFRAMStart`/`hasFRAMStart`) as a foundation for future FRAM-aware analysis; no
+  timing pass consumes it yet.
 
 ### PathAnalysisPass & InstructionLatencyPass
 - **`InstructionLatencyPass`**: Uses `MSP430` opcode switch-cases (in `getMSP430Latency`) to assign cycle counts to individual instructions. It feeds latency data into the `TimingAnalysisResults`.

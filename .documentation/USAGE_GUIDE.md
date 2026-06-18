@@ -21,13 +21,16 @@
 ```
 
 ### Command-Line Options
-| Option                     | Description                                           |
-| -------------------------- | ----------------------------------------------------- |
-| `-march=<arch>`            | Target architecture (e.g., `msp430`)                  |
-| `-start-function=<name>`   | Entry function for analysis                           |
-| `--ilp-solver=<solver>`    | Solver selection: `auto`, `gurobi`, `highs`, or `all` |
-| `-loop-bounds-json=<path>` | JSON file with loop bounds                            |
-| `-gIR`                     | Debug mode: dump IR instead of analysis               |
+| Option                       | Description                                           |
+| ---------------------------- | ----------------------------------------------------- |
+| `-march=<arch>`              | Target architecture (e.g., `msp430`)                  |
+| `-start-function=<name>`     | Entry function for analysis                           |
+| `--ilp-solver=<solver>`      | Solver selection: `auto`, `gurobi`, `highs`, or `all` |
+| `-loop-bounds-json=<path>`   | JSON file with loop bounds                            |
+| `-dump-file=<path>`          | objdump (`-Dl`) disassembly of the linked ELF, used to resolve real instruction addresses |
+| `-fram-start=<hex>`          | Start address of the MSP430 FRAM region (e.g. `0x4000`); stored for later FRAM-aware analysis |
+| `-address-resolver-verbose`  | Verbose address-resolution diagnostics for analysed functions |
+| `-gIR`                       | Debug mode: dump IR instead of analysis               |
 
 ---
 

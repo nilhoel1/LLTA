@@ -24,4 +24,14 @@ extern llvm::cl::opt<std::string> ILPSolverOption;
  */
 extern llvm::cl::opt<bool> LLCMode;
 
+/**
+ * Hex start address of the MSP430 FRAM region (foundation only; -fram-start).
+ */
+extern llvm::cl::opt<std::string> FRAMStartAddress;
+
+/**
+ * Verbose diagnostics for the address resolver (-address-resolver-verbose).
+ */
+extern llvm::cl::opt<bool> AddressResolverVerbose;
+
 #endif

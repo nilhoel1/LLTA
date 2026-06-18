@@ -37,3 +37,16 @@ cl::opt<bool>
             cl::desc("Run purely as a compiler driver (like llc) executing "
                      "transformation passes without performing WCET analysis."),
             cl::cat(LLTA));
+
+cl::opt<std::string> FRAMStartAddress(
+    "fram-start", cl::init(""),
+    cl::desc("Hex start address of the MSP430 FRAM region, e.g. 0x4000. Stored "
+             "for later FRAM-aware analysis; does not change timing yet."),
+    cl::cat(LLTA));
+
+cl::opt<bool> AddressResolverVerbose(
+    "address-resolver-verbose", cl::init(false),
+    cl::desc("Print detailed diagnostics from the address resolver: every "
+             "encoding cross-check mismatch and offset repair, with the "
+             "function, instruction, expected vs. actual bytes and assembly."),
+    cl::cat(LLTA));

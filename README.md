@@ -242,8 +242,10 @@ ninja LoopBoundPlugin
 **Common Options:**
 
 - `-march=<arch>`: Specify target architecture (e.g., `msp430`).
-- `-dump-file=<path>`: Path to dump the ELF file or analysis results.
+- `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction.
 - `-start-function=<name>`: Entry point for analysis (default: `main`).
+- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Stored for later FRAM-aware analysis; does not change timing yet.
+- `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses, encoding cross-check mismatches and offset repairs) for the analysed functions.
 
 ### 2. Preparing Input Files
 
@@ -275,7 +277,7 @@ LLTA injects several passes into the backend pipeline (in this order):
 
 1. **`CallSplitterPass`**: Manages context sensitivity by splitting function calls.
 2. **`AsmDumpAndCheckPass`**: Verifies the generated assembly against expected output.
-3. **`AdressResolverPass`**: Resolves symbolic addresses to physical addresses.
+3. **`AdressResolverPass`**: Discovers the real absolute address of every analysed instruction by aligning the `-dump-file` objdump disassembly with the Machine IR (function + in-order walk), and stores an `MachineInstr* → address` map in `TimingAnalysisResults`. Alignment is validated by re-encoding "simple" (register/immediate) instructions and byte-comparing against the dump, which also re-synchronises around inline asm. Also stores the `-fram-start` region.
 4. **`InstructionLatencyPass`**: Assigns execution latency to each machine instruction based on the target model.
 5. **`MachineLoopBoundAgregatorPass`**: Collects loop bounds from SCEV and manual annotations (JSON).
 6. **`FillMuGraphPass`**: Constructs a graph representing the micro-architectural state.
@@ -498,8 +500,10 @@ ninja LoopBoundPlugin
 **Common Options:**
 
 - `-march=<arch>`: Specify target architecture (e.g., `msp430`).
-- `-dump-file=<path>`: Path to dump the ELF file or analysis results.
+- `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction.
 - `-start-function=<name>`: Entry point for analysis (default: `main`).
+- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Stored for later FRAM-aware analysis; does not change timing yet.
+- `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses, encoding cross-check mismatches and offset repairs) for the analysed functions.
 
 ### 2. Preparing Input Files
 
@@ -533,7 +537,7 @@ LLTA injects several passes into the backend pipeline:
 2. **`InstructionLatencyPass`**: Assigns execution latency to each machine instruction based on the target model.
 3. **`FillMuGraphPass`**: Constructs a graph representing the micro-architectural state.
 4. **`PathAnalysisPass`**: Formulates the WCET problem as an Integer Linear Program (ILP) and solves it using Gurobi.
-5. **`AdressResolverPass`**: Resolves symbolic addresses to physical addresses.
+5. **`AdressResolverPass`**: Discovers the real absolute address of every analysed instruction by aligning the `-dump-file` objdump disassembly with the Machine IR (function + in-order walk), and stores an `MachineInstr* → address` map in `TimingAnalysisResults`. Alignment is validated by re-encoding "simple" (register/immediate) instructions and byte-comparing against the dump, which also re-synchronises around inline asm. Also stores the `-fram-start` region.
 6. **`CallSplitterPass`**: Manages context sensitivity by splitting function calls.
 7. **`AsmDumpAndCheckPass`**: Verifies the generated assembly against expected output.
 
