@@ -501,9 +501,13 @@ int foo(int x)
 #endif
   int i,j,k,l;
 
+  #pragma loop_bound(0, 5)
   for(i=0; i<5; i++)
+    #pragma loop_bound(0, 5)
     for(j=0 ; j<5 ; j++)
+      #pragma loop_bound(0, 5)
       for(k=0 ; k<5 ; k++)
+        #pragma loop_bound(0, 5)
         for(l=0 ; l<5 ; l++)
         {
 #ifdef TEST

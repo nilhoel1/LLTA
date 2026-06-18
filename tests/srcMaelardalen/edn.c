@@ -32,6 +32,7 @@ vec_mpy1(short y[], const short x[], short scaler)
 {
 	long int        i;
 
+	#pragma loop_bound(0, 150)
 	for (i = 0; i < 150; i++)
 		y[i] += ((scaler * x[i]) >> 15);
 }
@@ -46,6 +47,7 @@ mac(const short *a, const short *b, long int sqr, long int *sum)
 	long int        i;
 	long int        dotp = *sum;
 
+	#pragma loop_bound(0, 150)
 	for (i = 0; i < 150; i++) {
 		dotp += b[i] * a[i];
 		sqr += b[i] * b[i];
@@ -64,8 +66,10 @@ fir(const short array1[], const short coeff[], long int output[])
 {
 	long int        i, j, sum;
 
+	#pragma loop_bound(0, 50)
 	for (i = 0; i < N - ORDER; i++) {
 		sum = 0;
+		#pragma loop_bound(0, 50)
 		for (j = 0; j < ORDER; j++) {
 			sum += array1[i + j] * coeff[j];
 		}
@@ -86,10 +90,12 @@ fir_no_red_ld(const short x[], const short h[], long int y[])
 	long int        i, j;
 	long int        sum0, sum1;
 	short           x0, x1, h0, h1;
+	#pragma loop_bound(0, 50)
 	for (j = 0; j < 100; j += 2) {
 		sum0 = 0;
 		sum1 = 0;
 		x0 = x[j];
+		#pragma loop_bound(0, 16)
 		for (i = 0; i < 32; i += 2) {
 			x1 = x[j + i + 1];
 			h0 = h[i];
@@ -114,6 +120,7 @@ latsynth(short b[], const short k[], long int n, long int f)
 	long int        i;
 
 	f -= b[n - 1] * k[n - 1];
+	#pragma loop_bound(0, 99)
 	for (i = n - 2; i >= 0; i--) {
 		f -= b[i] * k[i];
 		b[i + 1] = b[i] + ((k[i] * (f >> 16)) >> 16);
@@ -133,6 +140,7 @@ iir1(const short *coefs, const short *input, long int *optr, long int *state)
 	long int        n;
 
 	x = input[0];
+	#pragma loop_bound(0, 50)
 	for (n = 0; n < 50; n++) {
 		t = x + ((coefs[2] * state[0] + coefs[3] * state[1]) >> 15);
 		x = t + ((coefs[0] * state[0] + coefs[1] * state[1]) >> 15);
@@ -159,6 +167,7 @@ codebook(long int mask, long int bitchanged, long int numbasis, long int codewor
 	long int        tmpMask;
 
 	tmpMask = mask << 1;
+	#pragma loop_bound(0, 16)
 	for (j = bitchanged + 1; j <= numbasis; j++) {
 
 
@@ -187,8 +196,11 @@ jpegdct(short *d, short *r)
 {
 	long int        t[12];
 	short           i, j, k, m, n, p;
+	#pragma loop_bound(0, 2)
 	for (k = 1, m = 0, n = 13, p = 8; k <= 8; k += 7, m += 3, n += 3, p -= 7, d -= 64) {
+		#pragma loop_bound(0, 8)
 		for (i = 0; i < 8; i++, d += p) {
+			#pragma loop_bound(0, 4)
 			for (j = 0; j < 4; j++) {
 				t[j] = d[k * j] + d[k * (7 - j)];
 				t[7 - j] = d[k * j] - d[k * (7 - j)];

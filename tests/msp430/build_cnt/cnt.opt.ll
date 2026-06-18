@@ -209,7 +209,7 @@ attributes #0 = { noinline nounwind "no-trapping-math"="true" "stack-protector-b
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "Array", scope: !2, file: !3, line: 49, type: !16, isLocal: false, isDefinition: true)
-!2 = distinct !DICompileUnit(language: DW_LANG_C99, file: !3, producer: "clang version 20.1.8 (git@github.com:nilhoel1/LLTA.git 91d4932d1af46f4831999809fbc599ecd7fe667f)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !4, splitDebugInlining: false, nameTableKind: None)
+!2 = distinct !DICompileUnit(language: DW_LANG_C99, file: !3, producer: "clang version 20.1.8 (git@github.com:nilhoel1/LLTA.git 1085a1254941ebc03acc7cab7e6e2b2cf6379771)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !4, splitDebugInlining: false, nameTableKind: None)
 !3 = !DIFile(filename: "../srcMaelardalen/cnt.c", directory: "/home/hoelscher/LLTA/tests/msp430")
 !4 = !{!5, !0, !8, !10, !12, !14}
 !5 = !DIGlobalVariableExpression(var: !6, expr: !DIExpression())
@@ -230,7 +230,7 @@ attributes #0 = { noinline nounwind "no-trapping-math"="true" "stack-protector-b
 !20 = !{i32 7, !"Dwarf Version", i32 4}
 !21 = !{i32 2, !"Debug Info Version", i32 3}
 !22 = !{i32 1, !"wchar_size", i32 2}
-!23 = !{!"clang version 20.1.8 (git@github.com:nilhoel1/LLTA.git 91d4932d1af46f4831999809fbc599ecd7fe667f)"}
+!23 = !{!"clang version 20.1.8 (git@github.com:nilhoel1/LLTA.git 1085a1254941ebc03acc7cab7e6e2b2cf6379771)"}
 !24 = distinct !DISubprogram(name: "main", scope: !3, file: !3, line: 57, type: !25, scopeLine: 59, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2)
 !25 = !DISubroutineType(types: !26)
 !26 = !{!7}

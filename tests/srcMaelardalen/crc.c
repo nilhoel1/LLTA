@@ -59,6 +59,7 @@ unsigned short icrc1(unsigned short crc, unsigned char onech)
 	int i;
 	unsigned short ans=(crc^onech << 8);
 
+	#pragma loop_bound(0, 8)
 	for (i=0;i<8;i++) {
 		if (ans & 0x8000)
 			ans = (ans <<= 1) ^ 4129;
@@ -79,6 +80,7 @@ unsigned short icrc(unsigned short crc, unsigned long len,
 
   if (!init) {
     init=1;
+    #pragma loop_bound(0, 256)
     for (j=0;j<=255;j++) {
       icrctb[j]=icrc1(j << 8,(uchar)0);
       rchr[j]=(uchar)(it[j & 0xF] << 4 | it[j >> 4]);
@@ -90,6 +92,7 @@ unsigned short icrc(unsigned short crc, unsigned long len,
 #ifdef DEBUG
   printf("len = %d\n", len);
 #endif
+  #pragma loop_bound(0, 42)
   for (j=1;j<=len;j++) {
     if (jrev < 0) {
       tmp1 = rchr[lin[j]]^ HIBYTE(cword);

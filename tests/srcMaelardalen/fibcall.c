@@ -49,6 +49,7 @@ int fib(int n)
   int  i, Fnew, Fold, temp,ans;
 
     Fnew = 1;  Fold = 0;
+    #pragma loop_bound(0, 29)
     for ( i = 2;
 	  i <= 30 && i <= n;          /* apsim_loop 1 0 */
 	  i++ )

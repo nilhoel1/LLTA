@@ -59,6 +59,7 @@ int main()
   a[1] = 11; a[2]=10;a[3]=9; a[4]=8; a[5]=7; a[6]=6; a[7]=5;
   a[8] =4; a[9]=3; a[10]=2;
   i = 2;
+  #pragma loop_bound(0, 9)
   while(i <= 10){
 #ifdef DEBUG
       cnt1++;
@@ -67,6 +68,7 @@ int main()
 #ifdef DEBUG
 	cnt2=0;
 #endif
+      #pragma loop_bound(0, 9)
       while (a[j] < a[j-1])
       {
 #ifdef DEBUG

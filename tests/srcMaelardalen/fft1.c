@@ -78,8 +78,10 @@ double rad;
   double diff;
   int inc = 1;
 
+#pragma loop_bound(0, 1)
   while (rad > 2*PI)
 	rad -= 2*PI;
+#pragma loop_bound(0, 1)
   while (rad < -2*PI)
     rad += 2*PI;
   app = diff = rad;
@@ -87,6 +89,7 @@ double rad;
       ((2.0 * inc) * (2.0 * inc + 1.0));
     app = app + diff;
     inc++;
+#pragma loop_bound(0, 15)
   while(fabs(diff) >= 0.00001) {
     diff = (diff * (-(rad*rad))) /
       ((2.0 * inc) * (2.0 * inc + 1.0));
@@ -113,6 +116,7 @@ void main()
 
 
 	/* ar  */
+#pragma loop_bound(0, 8)
 	for(i = 0; i < n; i++)
 	  ar[i] = cos(2*M_PI*i/n);
 
@@ -140,6 +144,7 @@ int fft1(int n, int flag)
 #ifdef DEBUG 
 	printf("iter=%d\n",iter);
 #endif
+#pragma loop_bound(0, 3)
 	 for(i = 0; i < iter; i++)
 	   j *= 2;
 	 if(fabs(n-j) > 1.0e-6)
@@ -148,6 +153,7 @@ int fft1(int n, int flag)
 	 /*  Main FFT Loops  */
 	 sign = ((flag == 1) ? 1.0 : -1.0);
 	 xp2 = n;
+#pragma loop_bound(0, 3)
 	 for(it = 0; it < iter; it++)
 	 {
 			 xp = xp2;
@@ -156,12 +162,14 @@ int fft1(int n, int flag)
 #ifdef DEBUG
 	printf("xp2=%d\n",xp2);
 #endif
+#pragma loop_bound(0, 4)
 			 for(k = 0; k < xp2; k++)
 			 {
 					 arg = k * w;
 					 wr = cos(arg);
 					 wi = sign * sin(arg);
 					 i = k - xp;
+#pragma loop_bound(0, 4)
 					 for(j = xp; j <= n; j += xp)
 					 {
 							 j1 = j + i;
@@ -188,6 +196,7 @@ int fft1(int n, int flag)
 #ifdef DEBUG
 	printf("j2=%d\n",j2);
 #endif
+#pragma loop_bound(0, 7)
 	 for(i = 1; i <= j2; i++)
 	 {
 			 if(i < j)
@@ -200,6 +209,7 @@ int fft1(int n, int flag)
 					ai[i-1] = ti;
 			 }
 			 k = j1;
+#pragma loop_bound(0, 3)
 			 while(k < j)
 			 {
 					j -= k;
@@ -209,6 +219,7 @@ int fft1(int n, int flag)
 	 }
 	 if(flag == 0) return(0);
 	 w = n;
+#pragma loop_bound(0, 8)
 	 for(i = 0; i < n; i++)
 	 {
 			 ar[i] /= w;

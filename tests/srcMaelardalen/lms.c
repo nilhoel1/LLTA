@@ -109,6 +109,7 @@ float val;
   flag = 0;
   if (val == 0 ) x = 0;
   else {
+#pragma loop_bound(0, 19)
     for (i=1;i<20;i++)
       {
 	if (!flag) {
@@ -133,8 +134,10 @@ float rad;
   float diff;
   int inc = 1;
 
+#pragma loop_bound(0, 11)
   while (rad > 2*PI)
 	rad -= 2*PI;
+#pragma loop_bound(0, 11)
   while (rad < -2*PI)
     rad += 2*PI;
   app = diff = rad;
@@ -142,6 +145,7 @@ float rad;
       ((2.0 * inc) * (2.0 * inc + 1.0));
     app = app + diff;
     inc++;
+#pragma loop_bound(0, 30)
   while(lms_fabs(diff) >= 0.00001) {
     diff = (diff * (-(rad*rad))) /
       ((2.0 * inc) * (2.0 * inc + 1.0));
@@ -168,6 +172,7 @@ static float gaussian()
             v1 *= rconst1;
             v2 *= rconst1;
             r = v1*v1 + v2*v2;
+#pragma loop_bound(0, 100)
         while (r > 1.0f) {
             v1 = (float)lms_rand() - rconst2;
             v2 = (float)lms_rand() - rconst2;
@@ -203,6 +208,7 @@ int main()
     signal_amp = lms_sqrt(2.0);
     noise_amp = 0.2*lms_sqrt(12.0);
     arg = 2.0*PI/20.0;
+#pragma loop_bound(0, 201)
     for(k = 0 ; k < N ; k++) {
         d[k] = signal_amp*lms_sin(arg*k) + noise_amp*gaussian();
     }
@@ -211,6 +217,7 @@ int main()
     mu = 2.0*mu/(L+1);
 
     x = 0.0;
+#pragma loop_bound(0, 201)
     for(k = 0 ; k < N ; k++) {
         lms(x,d[k],b,L,mu,0.01);
 /* delay x one sample */
@@ -250,6 +257,7 @@ float lms(float x,float d,float *b,int l,
 #ifdef DEBUG
     printf("l=%d\n",l);
 #endif
+#pragma loop_bound(0, 20)
     for(ll = 1 ; ll <= l ; ll++)
         y=y+b[ll]*px[ll];
 
@@ -261,9 +269,11 @@ float lms(float x,float d,float *b,int l,
     mu_e=mu*e/sigma;
 
 /* update coefficients */
+#pragma loop_bound(0, 21)
     for(ll = 0 ; ll <= l ; ll++)
         b[ll]=b[ll]+mu_e*px[ll];
 /* update history */
+#pragma loop_bound(0, 20)
     for(ll = l ; ll >= 1 ; ll--)
         px[ll]=px[ll-1];
 

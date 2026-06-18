@@ -78,12 +78,16 @@ int main()
 
 	eps = 1.0e-6;
 
+	#pragma loop_bound(0, 3)
 	for(i = 0; i < 3; i++)
+	  #pragma loop_bound(0, 3)
 	  for(j = 0; j < 3; j++)
 	    aa[i][j] = a[i][j];
 
 	minver(3, 3, eps);
+	#pragma loop_bound(0, 3)
 	for(i = 0; i < 3; i++)
+	  #pragma loop_bound(0, 3)
 	  for(j = 0; j < 3; j++)
 	    a_i[i][j] = a[i][j];
 
@@ -101,11 +105,14 @@ int  mmul(int row_a, int col_a, int row_b, int col_b)
 	 col_c = col_b;
 
 	 if(row_c < 1 || row_b < 1 || col_c < 1 || col_a != row_b) return(999);
+	 #pragma loop_bound(0, 3)
 	 for(i = 0; i < row_c; i++)
 	 {
+	   #pragma loop_bound(0, 3)
 	   for(j = 0; j < col_c; j++)
 	     {
 	       w = 0.0;
+	       #pragma loop_bound(0, 3)
 	       for(k = 0; k < row_b; k++)
 		 w += a[i][k] * b[k][j];
 	       c[i][j] = w;
@@ -124,11 +131,14 @@ int minver(int row, int col, double eps)
 
 	if(row < 2 || row > 500 || eps <= 0.0) return(999);
 	w1 = 1.0;
+	#pragma loop_bound(0, 3)
 	for(i = 0; i < row; i++)
 	  work[i] = i;
+	#pragma loop_bound(0, 3)
 	for(k = 0; k < row; k++)
 	  {
 	    wmax = 0.0;
+	    #pragma loop_bound(0, 3)
 	    for(i = k; i < row; i++)
 	      {
 		w = minver_fabs(a[i][k]);
@@ -154,6 +164,7 @@ int minver(int row, int col, double eps)
 		iw = work[k];
 		work[k] = work[r];
 		work[r] = iw;
+		#pragma loop_bound(0, 3)
 		for(j = 0; j < row; j++)
 		  {
 		    s = u + j;
@@ -163,8 +174,10 @@ int minver(int row, int col, double eps)
 		    a[r][j] = w;
 		  }
 	      }
+	    #pragma loop_bound(0, 3)
 	    for(i = 0; i < row; i++)
 	      a[k][i] /= pivot;
+	    #pragma loop_bound(0, 3)
 	    for(i = 0; i < row; i++)
 	      {
 		if(i != k)
@@ -174,6 +187,7 @@ int minver(int row, int col, double eps)
 		    w = a[i][k];
 		    if(w != 0.0)
 		      {
+			#pragma loop_bound(0, 3)
 			for(j = 0; j < row; j++)
 			  if(j != k) a[i][j] -= w * a[k][j];
 			a[i][k] = -w / pivot;
@@ -182,8 +196,10 @@ int minver(int row, int col, double eps)
 	      }
 	    a[k][k] = 1.0 / pivot;
 	  }
+	#pragma loop_bound(0, 3)
 	for(i = 0; i < row; i++)
 	  {
+	    #pragma loop_bound(0, 3)
 	    while(1)
 	      {
 		k = work[i];
@@ -191,6 +207,7 @@ int minver(int row, int col, double eps)
 		iw = work[k];
 		work[k] = work[i];
 		work[i] = iw;
+		#pragma loop_bound(0, 3)
 		for(j = 0; j < row; j++)
 		  {
 		    u = j * col;

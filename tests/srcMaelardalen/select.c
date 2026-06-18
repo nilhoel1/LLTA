@@ -64,6 +64,7 @@ float select(unsigned long k, unsigned long n)
 	l=1;
 	ir=n;
 	flag = flag2 = 0; 
+	#pragma loop_bound(0, 20)
 	while (!flag) {
 		if (ir <= l+1) {
 			if (ir == l+1) 
@@ -86,10 +87,13 @@ float select(unsigned long k, unsigned long n)
 			i=l+1;
 			j=ir;
 			a=arr[l];
+			#pragma loop_bound(0, 20)
 			while (!flag2) {
 				i++; 
+				#pragma loop_bound(0, 20)
 				while (arr[i] < a) i++;
 				j--; 
+				#pragma loop_bound(0, 20)
 				while (arr[j] > a) j--;
 				if (j < i) flag2 = 1;
 				if (!flag2) SWAP(arr[i],arr[j]);

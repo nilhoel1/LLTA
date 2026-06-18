@@ -72,6 +72,7 @@ float sqrtfcn(float val)
    if (val == 0 )
       x = 0;
    else {
+      #pragma loop_bound(0, 19)
       for (i=1;i<20;i++)
       {
          if (!flag) {

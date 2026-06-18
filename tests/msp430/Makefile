@@ -8,11 +8,18 @@ IR_TOOLCHAIN = ../../build/bin
 MSP_SUPPORT_FILES = ../../externalDeps/MSP430/msp430-gcc-support-files/include
 MSP_DRIVERLIB = ../../externalDeps/MSP430/msp430-driverlib
 
+# LoopBoundPlugin: .so on Linux, .dylib on macOS. Pick whichever exists.
+LOOPBOUND_PLUGIN = $(firstword $(wildcard \
+    $(abspath $(IR_TOOLCHAIN))/../lib/LoopBoundPlugin.so \
+    $(abspath $(IR_TOOLCHAIN))/../lib/LoopBoundPlugin.dylib))
+
 # Compilation Flags
 MSP_DEVICE = msp430fr5994
 CCFLAGS = -D__MSP430F5529__ -O0 -gdwarf-4 -gstrict-dwarf -fno-dwarf2-cfi-asm \
           --target=msp430 -Wall -I$(MSP_SUPPORT_FILES) -I. -Xclang -disable-O0-optnone \
-          -I$(MSP_DRIVERLIB)
+          -I$(MSP_DRIVERLIB) \
+          -Wno-implicit-int -Wno-implicit-function-declaration \
+          -Wno-deprecated-non-prototype -Wno-return-type
 
 # Optimization Passes
 OPTFLAGS = -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' -S #,loop-unroll
@@ -96,7 +103,7 @@ $(BUILD_DIR)/$(TEST).loop_bounds.json: $(SOURCE) | $(BUILD_DIR)
 	@echo "LOOPBND  $< -> $@"
 	@$(abspath $(IR_TOOLCHAIN))/clang -cc1 -triple msp430 \
 		-I$(abspath $(MSP_SUPPORT_FILES)) -I$(abspath $(MSP_DRIVERLIB)) \
-		-load $(abspath $(IR_TOOLCHAIN))/../lib/LoopBoundPlugin.dylib \
+		-load $(LOOPBOUND_PLUGIN) \
 		-plugin loop-bound \
 		-plugin-arg-loop-bound verbose \
 		$(abspath $<) > /dev/null 2>&1 || true

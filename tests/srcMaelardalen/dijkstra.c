@@ -1,5 +1,9 @@
 #include <stdint.h>
-#include <stdio.h>
+// #include <stdio.h>
+
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
 
 #define NUM_NODES 100
 #define NONE 9999
@@ -679,6 +683,7 @@ void enqueue(long iNode, long iDist, long iPrev) {
 
   if (!qNew) {
     printf("Out of memory\n");
+    #pragma loop_bound(0, 0)
     while (1)
       ;
   }
@@ -690,6 +695,7 @@ void enqueue(long iNode, long iDist, long iPrev) {
   if (!qLast) {
     qHead = qNew;
   } else {
+    #pragma loop_bound(0, 10000)
     while (qLast->qNext)
       qLast = qLast->qNext;
     qLast->qNext = qNew;
@@ -715,6 +721,7 @@ void dequeue(long *piNode, long *piDist, long *piPrev) {
 int qcount(void) { return (g_qCount); }
 
 void dijkstra(long chStart, long chEnd) {
+  #pragma loop_bound(0, 100)
   for (ch = 0; ch < NUM_NODES; ch++) {
     rgnNodes[ch].iDist = NONE;
     rgnNodes[ch].iPrev = NONE;
@@ -728,8 +735,10 @@ void dijkstra(long chStart, long chEnd) {
 
     enqueue(chStart, 0, NONE);
 
+    #pragma loop_bound(0, 10000)
     while (qcount() > 0) {
       dequeue(&iNode, &iDist, &iPrev);
+      #pragma loop_bound(0, 100)
       for (i = 0; i < NUM_NODES; i++) {
         if ((iCost = AdjMatrix[iNode][i]) != NONE) {
           if ((NONE == rgnNodes[i].iDist) ||
@@ -754,7 +763,9 @@ int main(int argc, char *argv[]) {
   long i, j;
 
   /* make a fully connected matrix */
+  #pragma loop_bound(0, 100)
   for (i = 0; i < NUM_NODES; i++) {
+    #pragma loop_bound(0, 100)
     for (j = 0; j < NUM_NODES; j++) {
       /* make it more sparce */
       // printf("Sanity Check: %d, %d \n", sanity, *rot_cnt);
@@ -763,6 +774,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* finds 10 shortest paths between nodes */
+  #pragma loop_bound(0, 100)
   for (i = 0, j = NUM_NODES / 2; i < 100; i++, j++) {
     j = j % NUM_NODES;
     // printf("Sanity Check: %d, %d \n", sanity, *rot_cnt);
@@ -771,6 +783,7 @@ int main(int argc, char *argv[]) {
 }
 
 void print_dijkstra() {
+  #pragma loop_bound(0, 100)
   for (int i = 0; i < 100; i++) {
     printf("Data @ %d : %d\n", i, (int)dijkstra_input_data[i][0]);
   }

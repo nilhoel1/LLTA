@@ -24,7 +24,8 @@ bool prime (uint n) {
   uint i;
   if (even (n))
       return (n == 2);
-  for (i = 3; i * i <= n; i += 2) { 
+  #pragma loop_bound(0, 357)
+  for (i = 3; i * i <= n; i += 2) {
       if (divides (i, n)) /* ai: loop here min 0 max 357 end; */
           return 0; 
   }

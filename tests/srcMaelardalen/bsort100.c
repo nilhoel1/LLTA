@@ -10,9 +10,9 @@
 #define UNKNOWN_VALUE (int)(*((char *)0x80200003))
 
 
-#include <sys/types.h>
-#include <sys/times.h>
-#include <stdio.h>
+// #include <sys/types.h>
+// #include <sys/times.h>
+// #include <stdio.h>
 
 #define WORSTCASE 1
 #define FALSE 0
@@ -56,11 +56,11 @@ int ttime()
  * used prior to it being called.
  */
 {
-   struct tms buffer;
+   // struct tms buffer;
    int utime;
 
    /*   times(&buffer);  not implemented */
-   utime = (buffer.tms_utime / 60.0) * 1000.0;
+   utime = 0; // (buffer.tms_utime / 60.0) * 1000.0;
    return(utime);
 }
 
@@ -80,6 +80,7 @@ int Array[];
 #endif
 
 fact = factor;
+#pragma loop_bound(0, 100)
 for (Index = 1; Index <= NUMELEMS; Index ++)
     Array[Index] = Index*fact * KNOWN_VALUE;
 }
@@ -95,11 +96,13 @@ int Array[];
    int Sorted = FALSE;
    int Temp, LastIndex, Index, i;
 
+   #pragma loop_bound(0, 99)
    for (i = 1;
 	i <= NUMELEMS-1;           /* apsim_loop 1 0 */
 	i++)
    {
       Sorted = TRUE;
+      #pragma loop_bound(0, 99)
       for (Index = 1;
 	   Index <= NUMELEMS-1;      /* apsim_loop 10 1 */
 	   Index ++) {

@@ -1004,6 +1004,7 @@ void FH_DU(void)
    time = 1;  /**SYS_get_clock()**/
    stable = 0;
    step   = 0;
+   #pragma loop_bound(0, 2)
    while (!stable)
    {
       stable = 1;

@@ -80,6 +80,7 @@ binary_search(x)
   low = 0;
   up = 14;
   fvalue = -1 /* all data are positive */ ;
+  #pragma loop_bound(0, 5)
   while (low <= up) {
     mid = (low + up) >> 1;
     if ( data[mid].key == x ) {  /*  found  */

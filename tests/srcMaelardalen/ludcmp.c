@@ -87,8 +87,10 @@ main(void)
 
 	eps = 1.0e-6;
 
+	#pragma loop_bound(0, 6)
 	for (i = 0; i <= n; i++) {
 		w = 0.0;
+		#pragma loop_bound(0, 6)
 		for (j = 0; j <= n; j++) {
 			a[i][j] = (i + 1) + (j + 1);
 			if (i == j)
@@ -113,33 +115,42 @@ ludcmp( /* int nmax, */ int n, double eps)
 
 	if (n > 99 || eps <= 0.0)
 		return (999);
+	#pragma loop_bound(0, 5)
 	for (i = 0; i < n; i++) {
 		if (fabs(a[i][i]) <= eps)
 			return (1);
+		#pragma loop_bound(0, 6)
 		for (j = i + 1; j <= n; j++) {
 			w = a[j][i];
 			if (i != 0)
+				#pragma loop_bound(0, 5)
 				for (k = 0; k < i; k++)
 					w -= a[j][k] * a[k][i];
 			a[j][i] = w / a[i][i];
 		}
+		#pragma loop_bound(0, 6)
 		for (j = i + 1; j <= n; j++) {
 			w = a[i + 1][j];
+			#pragma loop_bound(0, 6)
 			for (k = 0; k <= i; k++)
 				w -= a[i + 1][k] * a[k][j];
 			a[i + 1][j] = w;
 		}
 	}
 	y[0] = b[0];
+	#pragma loop_bound(0, 6)
 	for (i = 1; i <= n; i++) {
 		w = b[i];
+		#pragma loop_bound(0, 5)
 		for (j = 0; j < i; j++)
 			w -= a[i][j] * y[j];
 		y[i] = w;
 	}
 	x[n] = y[n] / a[n][n];
+	#pragma loop_bound(0, 6)
 	for (i = n - 1; i >= 0; i--) {
 		w = y[i];
+		#pragma loop_bound(0, 6)
 		for (j = i + 1; j <= n; j++)
 			w -= a[i][j] * x[j];
 		x[i] = w / a[i][i];

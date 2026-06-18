@@ -24,6 +24,7 @@ void duffcopy( char *to, char *from, int count)
 {
   int n=(count+7)/8;
   switch(count%8){
+  #pragma loop_bound(0, 6)
   case 0: do{     *to++ = *from++;
   case 7:         *to++ = *from++;
   case 6:         *to++ = *from++;
@@ -40,6 +41,7 @@ void duffcopy( char *to, char *from, int count)
 void initialize( char *arr, int length)
 {
   int i;
+  #pragma loop_bound(0, 100)
   for(i=0;i<length;i++)
     {
       arr[i] = length-i;

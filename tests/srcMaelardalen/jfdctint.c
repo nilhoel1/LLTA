@@ -216,6 +216,7 @@ jpeg_fdct_islow ()
   /* furthermore, we scale the results by 2**PASS1_BITS. */
 
   dataptr = data;
+  #pragma loop_bound(0, 8)
   for (ctr = DCTSIZE-1; ctr >= 0; ctr--) {
     tmp0 = dataptr[0] + dataptr[7];
     tmp7 = dataptr[0] - dataptr[7];
@@ -281,6 +282,7 @@ jpeg_fdct_islow ()
    */
 
   dataptr = data;
+  #pragma loop_bound(0, 8)
   for (ctr = DCTSIZE-1; ctr >= 0; ctr--) {
     tmp0 = dataptr[DCTSIZE*0] + dataptr[DCTSIZE*7];
     tmp7 = dataptr[DCTSIZE*0] - dataptr[DCTSIZE*7];
@@ -365,6 +367,7 @@ void main(void)
   /* Worst case settings */
   /* Set array to random values */
   seed = 1;
+  #pragma loop_bound(0, 64)
   for (i = 0; i < 64; i++) {
     seed = ((seed * 133) + 81) % 65535;
     data[i] = seed;

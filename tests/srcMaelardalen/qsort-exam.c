@@ -61,10 +61,13 @@ void sort(unsigned long n)
 	float a,temp;
 
 	flag = 0;
+	#pragma loop_bound(0, 40)
 	for (;;) {
 		if (ir-l < M) {
+			#pragma loop_bound(0, 20)
 			for (j=l+1;j<=ir;j++) {
 				a=arr[j];
+				#pragma loop_bound(0, 20)
 				for (i=j-1;i>=l;i--) {
 					if (arr[i] <= a) break;
 					arr[i+1]=arr[i];
@@ -89,9 +92,14 @@ void sort(unsigned long n)
 			i=l+1;
 			j=ir;
 			a=arr[l+1];
+			#pragma loop_bound(0, 20)
 			for (;;) {
-				i++; while (arr[i] < a) i++;
-				j--; while (arr[j] > a) j--;
+				i++;
+				#pragma loop_bound(0, 20)
+				while (arr[i] < a) i++;
+				j--;
+				#pragma loop_bound(0, 20)
+				while (arr[j] > a) j--;
 				if (j < i) break;
 				SWAP(arr[i],arr[j]);
 			}

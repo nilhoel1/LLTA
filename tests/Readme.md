@@ -1,83 +1,49 @@
 # LLTA Tests
 
-This directory contains test cases and benchmarks for the LLTA project.
+Test cases and benchmarks for LLTA. Sources for the Maelardalen (MRTC) suite
+live in `tests/srcMaelardalen/` (annotated with `#pragma loop_bound(lower, upper)`).
 
-## Generating Loop Bounds
+## MSP430 build pipeline
 
-To generate loop bound JSON files from C source files using the LoopBoundPlugin, use the `generate_loop_bounds.sh` script.
-
-### Usage
-
-```bash
-./generate_loop_bounds.sh <arch> <target>
-```
-
-Example:
+`tests/msp430/` has a modular Makefile. Prerequisite: `make -C tests/msp430 download`.
 
 ```bash
-./generate_loop_bounds.sh msp430 cnt
+make -C tests/msp430 TEST=cnt all        # C -> .ll -> .opt.ll -> .S -> .elf -> .dump
+make -C tests/msp430 TEST=cnt analyze    # + loop bounds (LoopBoundPlugin) + WCET, into build_cnt/cnt.wcet
 ```
 
-## Preparing LLVM IR for SCEV Analysis
+Loop bounds: SCEV first, falling back to the plugin's JSON (from the source
+pragmas). IR is optimized with `mem2reg,...,loop-rotate,indvars` so SCEV sees
+canonical loops; `generate_loop_bounds.sh <arch> <target>` regenerates a JSON
+standalone.
 
-The `MachineLoopBoundAgregatorPass` relies on LLVM's ScalarEvolution (SCEV) analysis to automatically detect loop bounds. For SCEV to work effectively, the input LLVM IR must be in a canonical form. Unoptimized IR (generated with `-O0`) often uses memory for loop counters and lacks the structure SCEV expects.
-
-To ensure SCEV can detect loop bounds, you must optimize the IR. The critical passes are `mem2reg` (to promote stack variables to registers) and `loop-rotate` (to put loops in do-while form).
-
-### Recommended Optimization Command
-
-Use `opt` to run the necessary passes:
+Build the whole suite at once (never aborts on one failure; prints a
+`BUILD`/`BOUNDS`/`ANALYZE` table):
 
 ```bash
-opt -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' input.ll -S -o input_opt.ll
+bash tests/msp430/build_all.sh            # .ll + .dump for every benchmark
+bash tests/msp430/build_all.sh analyze    # + WCET analysis
 ```
 
-Alternatively, `-O1` usually provides sufficient optimization:
+Per-benchmark artifacts go to `tests/msp430/build_<name>/` and are git-ignored
+(regenerated on demand); only the baselines are committed.
+
+## Regression testing
+
+`tests/regression_test.py` is driven by `tests/msp430/regression_baselines.json`.
+It builds and runs **every** Maelardalen benchmark and compares each outcome to
+its baseline:
+
+- `"expected": <int>` — must reproduce this exact WCET.
+- `"expected": null` — a valid run that yields **no** WCET (build fails, analyzer
+  crashes, or the ILP gives up). A crash is a valid run; `status`/`note` say why.
 
 ```bash
-opt -O1 input.ll -S -o input_opt.ll
+./config.sh build
+python3 tests/regression_test.py     # GREEN = all outcomes match
 ```
 
-If SCEV returns `COULDNOTCOMPUTE`, it is likely because the loop is not in a rotated canonical form.
-
-## Running MSP430 Tests
-
-The `tests/msp430` directory contains a modular Makefile for building and analyzing benchmarks (e.g., from `tests/srcMaelardalen`).
-
-### Prerequisites
-
-Download the MSP430 toolchain and support files:
-
-```bash
-make -C tests/msp430 download
-```
-
-### Building a Test Case
-
-To build a test case (e.g., `cnt`) from source to ELF binary and dump:
-
-```bash
-make -C tests/msp430 TEST=cnt all
-```
-
-This will:
-1. Compile `cnt.c` to LLVM IR.
-2. Optimize the IR (`-passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars'`).
-3. Run LLTA in compiler-driver mode (`-llc`) to perform transformations (like Call Splitting) and generate assembly.
-4. Sanitize the assembly (remove incompatible debug directives).
-5. Assemble and link using the MSP430 GCC toolchain.
-
-Artifacts are generated in `tests/msp430/build_cnt/`.
-
-### Running WCET Analysis
-
-To run the full LLTA WCET analysis:
-
-```bash
-make -C tests/msp430 TEST=cnt analyze
-```
-
-This will:
-1. Generate a loop bounds JSON file using the Clang `LoopBoundPlugin`.
-2. Run `llta` on the optimized IR, using the loop bounds and the binary dump for address resolution.
-3. Output the analysis report to `build_cnt/cnt.wcet`.
+**GREEN** matches; **YELLOW** WCET drifted or a non-producing benchmark now
+yields one (refresh the baseline); **RED** a benchmark lost its WCET (regression,
+exit 1). To re-baseline, run `build_all.sh analyze` and update the affected
+entries in `regression_baselines.json`.

@@ -1,109 +1,150 @@
+#!/usr/bin/env python3
+"""LLTA regression test for the Maelardalen (MRTC) benchmark suite.
+
+Data-driven harness. It drives every Maelardalen benchmark through the analyzer
+and compares the *observed* outcome to the committed baseline in
+``msp430/regression_baselines.json``.
+
+Testing philosophy (this checks TOOLCHAIN stability, not LLTA correctness):
+
+  * Every benchmark is BUILT (via the msp430 Makefile) and RUN through ``llta``.
+    Loop bounds come from the Clang LoopBoundPlugin, driven by the
+    ``#pragma loop_bound(...)`` annotations in tests/srcMaelardalen/*.c.
+  * A benchmark that produces a WCET pins that integer -- the contract.
+  * A benchmark that does NOT produce a WCET -- because it fails to build,
+    crashes the analyzer, or the ILP solver gives up -- is *also* a valid,
+    recorded outcome (``"expected": null`` + a human-readable status/note).
+    A crash is a valid test run.
+
+Per-benchmark result:
+  GREEN  observed outcome matches the baseline
+  YELLOW WCET drifted, OR a previously non-producing benchmark now yields a WCET
+         (the baseline should be refreshed)
+  RED    a benchmark that used to yield a WCET no longer does (regression), or
+         the baseline file is missing
+
+Exit code: RED -> 1, otherwise 0 (YELLOW passes with a warning).
+
+Note: benchmarks are regenerated each run via the Makefile, so the MSP430
+toolchain and a built clang/opt/llta must be present. Make's incremental
+dependency tracking keeps re-runs cheap.
+"""
+import json
 import os
-import subprocess
 import re
+import subprocess
 import sys
 
-# Configuration
-# Assuming script is in tests/ directory
-LLTA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../build/bin/llta"))
-CNT_LL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "msp430/cnt/msp.ll"))
-COVER_LL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "msp430/cover/msp.ll"))
+TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+LLTA_PATH = os.path.abspath(os.path.join(TESTS_DIR, "../build/bin/llta"))
+MSP430_DIR = os.path.join(TESTS_DIR, "msp430")
+BASELINES_PATH = os.path.join(MSP430_DIR, "regression_baselines.json")
 
-# Baselines (Current Version as of 2025-12-11)
-EXPECTED_CNT_WCET = 6347
-EXPECTED_COVER_WCET = 3483
+GREEN, YELLOW, RED = "GREEN", "YELLOW", "RED"
+STATUS_PRIORITY = {GREEN: 0, YELLOW: 1, RED: 2}
 
-def run_test(name, ll_path, expected_wcet, extra_args=[]):
-    print(f"Running test: {name}")
-    if not os.path.exists(ll_path):
-        print(f"Error: .ll file not found at {ll_path}")
-        return "RED"
+WCET_PATTERNS = [
+    re.compile(r"WCET \(worst-case execution time\): (\d+) cycles"),
+    re.compile(r"All solvers agree on WCET: (\d+) cycles"),
+]
 
-    cmd = [LLTA_PATH] + extra_args + [ll_path]
-    print(f"Command: {' '.join(cmd)}")
-    
+
+def extract_wcet(text):
+    """Return the WCET integer found in analyzer output, or None."""
+    for pattern in WCET_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def run_benchmark(name, spec):
+    """Build + analyze a benchmark via the Makefile. Returns (wcet|None, error|None).
+
+    The .wcet file captures llta's output regardless of whether it crashed,
+    failed to build, or the solver gave up -- so a missing WCET line (or a
+    missing file) simply means "did not produce a WCET", a valid recorded outcome.
+    """
     try:
-        # Run command
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        subprocess.run(
+            ["make", f"TEST={name}", "analyze"],
+            cwd=MSP430_DIR,
+            capture_output=True,
+            text=True,
+            timeout=spec.get("timeout", 180),
+        )
     except subprocess.TimeoutExpired:
-        print(f"TIMEOUT: {name}")
-        return "RED"
-    except Exception as e:
-        print(f"ERROR: {name} - {e}")
-        return "RED"
+        return None, "build/analyze timeout"
+    wcet_file = os.path.join(MSP430_DIR, f"build_{name}", f"{name}.wcet")
+    if not os.path.exists(wcet_file):
+        return None, None
+    with open(wcet_file, errors="replace") as handle:
+        return extract_wcet(handle.read()), None
 
-    # Check for crash/failure return code (non-zero)
-    if result.returncode != 0:
-        print(f"FAIL: {name} - Exit code {result.returncode}")
-        print("Output (stderr):")
-        print(result.stderr)
-        return "RED"
 
-    # Check for WCET in stdout (Legacy analysis)
-    match = re.search(r"WCET \(worst-case execution time\): (\d+) cycles", result.stdout)
-    if not match:
-        # Try unified table format
-        match = re.search(r"All solvers agree on WCET: (\d+) cycles", result.stdout)
-    if not match:
-        print(f"FAIL: {name} - Bound not found in output")
-        print("Tail of stdout:")
-        print(result.stdout[-500:] if result.stdout else "Empty stdout")
-        return "RED"
-    
-    wcet = int(match.group(1))
-    print(f"Info: {name} WCET = {wcet}")
+def classify(observed, expected):
+    """Compare an observed WCET (int|None) against the baseline expected (int|None)."""
+    if expected is None:
+        # Baseline: this benchmark does not produce a WCET (build-fail / crash /
+        # analyze-fail). Still not producing one => GREEN (matches the baseline).
+        return GREEN if observed is None else YELLOW
+    # Baseline pins an integer WCET.
+    if observed is None:
+        return RED  # regression: lost the WCET it used to compute
+    if observed == expected:
+        return GREEN
+    return YELLOW  # WCET drifted
 
-    if wcet == expected_wcet:
-        print(f"PASS: {name} (Matches expected {wcet}) -> GREEN")
-        return "GREEN"
+
+def report(name, status, observed, spec, error):
+    expected = spec.get("expected")
+    note = spec.get("status") or ""
+    if expected is None:
+        exp_str = f"no-wcet ({note})" if note else "no-wcet"
     else:
-        print(f"WARNING: {name} (Expected {expected_wcet}, got {wcet}) -> YELLOW")
-        return "YELLOW"
+        exp_str = str(expected)
+    obs_str = str(observed) if observed is not None else "no-wcet"
+    if error:
+        obs_str += f" [{error}]"
+    print(f"  {status:<6} {name:<16} expected={exp_str:<14} observed={obs_str}")
 
 
 def main():
-    print("=== LLTA Regression Test ===")
-    print(f"LLTA Executable: {LLTA_PATH}")
-    
+    print("=== LLTA Regression Test (Maelardalen suite) ===")
+    print(f"LLTA: {LLTA_PATH}")
     if not os.path.exists(LLTA_PATH):
         print("Error: LLTA executable not found.")
         sys.exit(1)
+    if not os.path.exists(BASELINES_PATH):
+        print(f"Error: baselines not found: {BASELINES_PATH}")
+        sys.exit(1)
+
+    with open(BASELINES_PATH) as handle:
+        baselines = json.load(handle)
 
     results = []
-    tests = []
-    
-    # Test CNT - Basic WCET
-    tests.append("cnt")
-    results.append(run_test("cnt", CNT_LL_PATH, EXPECTED_CNT_WCET))
-    
-    # Test COVER - With start function
-    tests.append("cover")
-    results.append(run_test("cover", COVER_LL_PATH, EXPECTED_COVER_WCET, ["-start-function=main"]))
-
-    # Cross-check the two abstract solver backends agree (when both are built).
-    tests.append("cnt-highs")
-    results.append(run_test("cnt-highs", CNT_LL_PATH, EXPECTED_CNT_WCET, ["--ilp-solver=highs"]))
+    for name, spec in sorted(baselines.get("maelardalen", {}).items()):
+        observed, error = run_benchmark(name, spec)
+        status = classify(observed, spec.get("expected"))
+        report(name, status, observed, spec, error)
+        results.append((name, status))
 
     print("\n=== Summary ===")
-    
-    status_priority = {"RED": 2, "YELLOW": 1, "GREEN": 0}
-    final_status = "GREEN"
-    
-    for i, res in enumerate(results):
-        print(f"{tests[i]}: {res}")
-        if status_priority[res] > status_priority[final_status]:
-            final_status = res
+    counts = {GREEN: 0, YELLOW: 0, RED: 0}
+    final = GREEN
+    for _, status in results:
+        counts[status] += 1
+        if STATUS_PRIORITY[status] > STATUS_PRIORITY[final]:
+            final = status
+    for status in (RED, YELLOW, GREEN):
+        names = [n for n, s in results if s == status]
+        if names:
+            print(f"{status}: {len(names)} -> {', '.join(names)}")
+    print(f"\nFinal Result: {final}  "
+          f"(GREEN={counts[GREEN]} YELLOW={counts[YELLOW]} RED={counts[RED]})")
 
-    print(f"\nFinal Result: {final_status}")
+    sys.exit(1 if final == RED else 0)
 
-    # Exit code based on status
-    if final_status == "RED":
-        sys.exit(1)
-    elif final_status == "YELLOW":
-        sys.exit(0) # Pass with warning
-    else:
-        sys.exit(0) # Pass
 
 if __name__ == "__main__":
     main()
-

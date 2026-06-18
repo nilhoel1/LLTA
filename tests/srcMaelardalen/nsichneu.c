@@ -25,7 +25,7 @@
 
 #ifdef DO_TRACING   // ON PC
 
-#include <stdio.h>
+// #include <stdio.h>
 #define TRACE(x) trace((x))
 #undef TEST                   /* finished testing! */
 void trace(char *s)
@@ -58,6 +58,7 @@ int main()
 /*   dummy_i = 17; Takes too much time */
    dummy_i = 2;
 
+   #pragma loop_bound(0, 2)
    while (dummy_i > 0) {
 
       dummy_i--;

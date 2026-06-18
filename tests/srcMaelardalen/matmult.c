@@ -22,8 +22,8 @@
 /* ***UPPSALA WCET***:
    disable stupid UNIX includes */
 #ifndef UPPSALAWCET
-#include <sys/types.h>
-#include <sys/times.h>
+// #include <sys/types.h>
+// #include <sys/times.h>
 #endif
 
 /*
@@ -112,7 +112,9 @@ void Initialize(matrix Array)
 {
    int OuterIndex, InnerIndex;
 
+   #pragma loop_bound(0, 20)
    for (OuterIndex = 0; OuterIndex < UPPERLIMIT; OuterIndex++)
+      #pragma loop_bound(0, 20)
       for (InnerIndex = 0; InnerIndex < UPPERLIMIT; InnerIndex++)
          Array[OuterIndex][InnerIndex] = RandomInteger();
 }
@@ -151,10 +153,13 @@ void Multiply(matrix A, matrix B, matrix Res)
 {
    register int Outer, Inner, Index;
 
+   #pragma loop_bound(0, 20)
    for (Outer = 0; Outer < UPPERLIMIT; Outer++)
+      #pragma loop_bound(0, 20)
       for (Inner = 0; Inner < UPPERLIMIT; Inner++)
       {
          Res [Outer][Inner] = 0;
+         #pragma loop_bound(0, 20)
          for (Index = 0; Index < UPPERLIMIT; Index++)
             Res[Outer][Inner]  +=
                A[Outer][Index] * B[Index][Inner];

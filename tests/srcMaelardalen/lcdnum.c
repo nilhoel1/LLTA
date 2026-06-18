@@ -57,6 +57,7 @@ int main(void)
   /*volatile*/ int  n; /* JG */
 
   n = 10;
+  #pragma loop_bound(0, 10)
   for(i=0; i< n; i++)
     {
       a = IN;                   /* scan port */

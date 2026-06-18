@@ -23,7 +23,7 @@
 
 #ifdef DO_TRACING   /* ON PC */
 
-#include <stdio.h>
+// #include <stdio.h>
 #define TRACE(x) trace((x))
 #undef TEST                   /* finished testing! */
 
@@ -229,6 +229,7 @@ void initbuffer(void)
    int i;
    int tabort;
 
+   #pragma loop_bound(0, 50)
    for (i = 0 ; i < BUFFERSIZE ; i++) {
       /* Generates random integers between 0 and 8095 */
       tabort = i;
@@ -270,6 +271,7 @@ void compress(void)
    ent = getbyte ();
 
    hshift = 0;
+   #pragma loop_bound(0, 8)
    for ( fcode = (long) hsize;  fcode < 65536L; fcode *= 2L )
    {
       hshift++;
@@ -281,6 +283,7 @@ void compress(void)
    cl_hash( (count_int) hsize_reg);		/* clear hash table */
 
 
+   #pragma loop_bound(0, 50)
    while ( InCnt > 0 )           /* apsim_loop 11 0 */
    {
       int apsim_bound111 = 0;
@@ -373,6 +376,7 @@ void cl_hash(count_int hsize)		/* reset code table */
    register long m1 = -1;
 
    i = hsize - 16;
+   #pragma loop_bound(0, 17)
    do {				/* might use Sys V memset(3) here */
 
       *(htab_p-16) = m1;
@@ -393,6 +397,7 @@ void cl_hash(count_int hsize)		/* reset code table */
       *(htab_p-1) = m1;
       htab_p -= 16;
    } while ((i -= 16) >= 0);
+   #pragma loop_bound(0, 16)
    for ( i += 16; i > 0; i-- ) {
       *--htab_p = m1;
    }
@@ -419,6 +424,7 @@ void putbyte( char c )
 void writebytes( char *buf, int n )
 {
    int i;
+   #pragma loop_bound(0, 16)
    for( i=0; (i<n) && /*apsim*/ (i < BITS) ; i++ ) {
       *OutBuff++ = buf[i];       		 /* apsim_unknown comp_text_buffer */
    }
@@ -473,6 +479,7 @@ void output( code_int code )
          bp = buf;
          bits = n_bits;
          bytes_out += bits;
+         #pragma loop_bound(0, 16)
          do {
             putbyte(*bp++);
          } while(( --bits) && ((bp - buf < BITS)));

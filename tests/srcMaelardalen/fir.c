@@ -268,6 +268,7 @@ void fir_filter_int(long* in,long* out,long in_len,
   /* initial value of accumulation length for startup */
   acc_length = coef_len2;
 
+  #pragma loop_bound(0, 700)
   for(i = 0 ; i < in_len ; i++) {
 
     /* set up pointer for accumulation */
@@ -277,6 +278,7 @@ void fir_filter_int(long* in,long* out,long in_len,
     /* do accumulation and write result with scale factor */
 
     acc = (long)(*coef_ptr++) * (*data_ptr--);
+    #pragma loop_bound(0, 34)
     for(j = 1 ; j < acc_length ; j++)
       acc += (long)(*coef_ptr++) * (*data_ptr--);
     *out++ = (int)(acc/scale);

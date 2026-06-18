@@ -28,8 +28,10 @@
 
 int complex(int a, int b)
 {
+  #pragma loop_bound(0, 11)
   while(a < 30)
     {
+      #pragma loop_bound(0, 9)
       while(b < a)
 	{ 
 	  if(b > 5) 

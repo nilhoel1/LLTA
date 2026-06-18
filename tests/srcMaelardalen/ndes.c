@@ -69,23 +69,28 @@ void des(immense inp, immense key, int * newkey, int isw, immense * out) {
    if (initflag) {
       initflag=0;
       bit[1]=shifter=1L;
+      #pragma loop_bound(0, 31)
       for(j=2;j<=32;j++) bit[j] = (shifter <<= 1);
       }
    if (*newkey) {
       *newkey=0;
       icd.r=icd.l=0L;
+      #pragma loop_bound(0, 28)
       for (j=28,k=56;j>=1;j--,k--) {
          icd.r = (icd.r <<= 1) | getbit(key,ipc1[j],32);
          icd.l = (icd.l <<= 1) | getbit(key,ipc1[k],32);
          }
 
+      #pragma loop_bound(0, 16)
       for(i=1;i<=16;i++) {pg = kns[i]; ks(/* key,*/ i, &pg); kns[i] = pg;}
       }
    itmp.r=itmp.l=0L;
+   #pragma loop_bound(0, 32)
    for (j=32,k=64;j>=1;j--,k--) {
       itmp.r = (itmp.r <<= 1) | getbit(inp,ip[j],32);
       itmp.l = (itmp.l <<= 1) | getbit(inp,ip[k],32);
       }
+   #pragma loop_bound(0, 16)
    for (i=1;i<=16;i++) {
       ii = (isw == 1 ? 17-i : i);
       cyfun(itmp.l, kns[ii], &ic);
@@ -97,6 +102,7 @@ void des(immense inp, immense key, int * newkey, int isw, immense * out) {
    itmp.r=itmp.l;
    itmp.l=ic;
    (*out).r=(*out).l=0L;
+   #pragma loop_bound(0, 32)
    for (j=32,k=64; j >= 1; j--, k--) {
       (*out).r = ((*out).r <<= 1) | getbit(itmp,ipm[j],32);
       (*out).l = ((*out).l <<= 1) | getbit(itmp,ipm[k],32);
@@ -117,11 +123,13 @@ void ks(/*immense key, */int n, great * kn) {
       icd.l = (icd.l | ((icd.l & 1L) << 28)) >> 1;
       }
    else
+      #pragma loop_bound(0, 2)
       for (i=1;i<=2;i++) {
          icd.r = (icd.r | ((icd.r & 1L) << 28)) >> 1;
          icd.l = (icd.l | ((icd.l & 1L) << 28)) >> 1;
          }
    (*kn).r=(*kn).c=(*kn).l=0;
+   #pragma loop_bound(0, 16)
    for (j=16,k=32,l=48; j>=1; j--,k--,l--) {
       (*kn).r=((*kn).r <<= 1) | (unsigned short)
           getbit(icd,ipc2[j],28);
@@ -182,6 +190,7 @@ void cyfun(unsigned long ir, great k, unsigned long * iout) {
 
    p = bit;
    ie.r=ie.c=ie.l=0;
+   #pragma loop_bound(0, 16)
    for (j=16,l=32,m=48;j>=1;j--,l--,m--) {
       ie.r = (ie.r <<=1) | (p[iet[j]] & ir ? 1 : 0);
       ie.c = (ie.c <<=1) | (p[iet[l]] & ir ? 1 : 0);
@@ -192,6 +201,7 @@ void cyfun(unsigned long ir, great k, unsigned long * iout) {
    ie.l ^= k.l;
    ietmp1=((unsigned long) ie.c << 16)+(unsigned long) ie.r;
    ietmp2=((unsigned long) ie.l << 8)+((unsigned long) ie.c >> 8);
+   #pragma loop_bound(0, 4)
    for (j=1,m=5;j<=4;j++,m++) {
       iec[j]=ietmp1 & 0x3fL;
       iec[m]=ietmp2 & 0x3fL;
@@ -199,6 +209,7 @@ void cyfun(unsigned long ir, great k, unsigned long * iout) {
       ietmp2 >>= 6;
       }
    itmp=0L;
+   #pragma loop_bound(0, 8)
    for (jj=8;jj>=1;jj--) {
       j =iec[jj];
       irow=((j & 0x1) << 1)+((j & 0x20) >> 5);
@@ -209,6 +220,7 @@ void cyfun(unsigned long ir, great k, unsigned long * iout) {
       }
    *iout=0L;
    p = bit;
+   #pragma loop_bound(0, 32)
    for (j=32;j>=1;j--)
       *iout = (*iout <<= 1) | (p[ipp[j]] & itmp ? 1 : 0);
 }
