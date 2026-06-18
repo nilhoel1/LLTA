@@ -1,7 +1,7 @@
 #ifndef FILL_MU_GRAPH_PASS_H
 #define FILL_MU_GRAPH_PASS_H
 
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "TimingAnalysisResults.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"

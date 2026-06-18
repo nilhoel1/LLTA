@@ -40,5 +40,5 @@ Implement a cycle-accurate timing model of the Espressif ESP32-C6 (RISC-V HP Cor
 - [ ] Implement the `AbstractHardwareStage` interface for each pipeline stage.
 - [ ] Create a factory function to assemble the `HardwarePipeline`.
 - [ ] Wrap the assembled pipeline in `MicroArchitectureAnalysis` to integrate with the Abstract Analysis Framework.
-- [ ] Create `lib/RTTargets/ESP32C6/` and register the target in `InstructionLatencyPass.cpp`.
+- [ ] Implement `lib/Targets/ESP32-C6/` (an `RTTarget` subclass) and register it in `lib/Targets/TargetRegistry.cpp`. The empirical model + assumptions are already parked there (`ESP32-C6-Model.json`, `results.csv`, `ESP32-C6-Assumptions.md`).
 - [ ] Compare LLTA's `CycleCount` prediction against the hardware measurements.

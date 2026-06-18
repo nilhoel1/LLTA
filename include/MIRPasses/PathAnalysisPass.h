@@ -1,4 +1,4 @@
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "TimingAnalysisResults.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -15,7 +15,6 @@
 #include "Analysis/GraphAdapter.h"
 #include "Analysis/WorklistSolver.h"
 #include "ILP/AbstractILPSolver.h"
-#include "RTTargets/MSP430/MSP430Pipeline.h"
 
 namespace llvm {
 
@@ -33,7 +32,6 @@ public:
   CallGraph *CG = nullptr;
 
   AbstractStateGraph ASG;
-  MSP430Pipeline Pipeline;
   WorklistSolver AnalysisWorker;
   std::unique_ptr<AbstractILPSolver> ABSolver;
 

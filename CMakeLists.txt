@@ -5,7 +5,7 @@ message (STATUS "Found tool LLTA")
 
 project("llta")
 
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/cmake)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
@@ -96,7 +96,7 @@ add_subdirectory(lib)
 enable_testing()
 add_subdirectory(tests/unit)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaRTTargets lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaTargets lltaGraph lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
 
 # Configure RPATH to find shared libraries at runtime
 set(LLTA_RPATHS "")

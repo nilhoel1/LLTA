@@ -1,585 +1,132 @@
 # LLTA - Low Level Timing Analysis
 
-LLTA is a timing analysis infrastructure built on top of LLVM. It operates on the Machine Intermediate Representation (MIR) to perform Worst-Case Execution Time (WCET) analysis. It functions as a drop-in replacement for `llc` (LLVM Static Compiler) with additional analysis passes injected into the code generation pipeline.
+LLTA is a WCET (Worst-Case Execution Time) timing-analysis infrastructure built
+on LLVM. It operates on the Machine IR (MIR) and runs as a drop-in replacement
+for `llc`, injecting analysis passes into the code-generation pipeline. The
+architecture under analysis is identified by the LLVM target triple.
 
-## Project Structure
+## Documentation
 
-The project is organized as follows:
+- [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — directory map, the analysis pass
+  pipeline, and where to find what.
+- [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md) — layering rules,
+  testing policy, and how to add a target.
+- [`docs/TargetAssumptions.md`](docs/TargetAssumptions.md) — what the design
+  assumes of every target.
+- [`CLAUDE.md`](CLAUDE.md) — quick guidance for working in the codebase.
 
-- **`LLTA.cpp`**: The main driver tool, based on LLVM's `llc`.
-- **`lib/MIRPasses/`**: Contains the core analysis passes that operate on MIR.
-- **`lib/RTTargets/`**: Contains target-specific micro-architectural models (currently MSP430).
-- **`lib/Utility/`**: Helper utilities and options.
-- **`clang-plugin/`**: A Clang plugin (`LoopBoundPlugin`) for annotating loop bounds in C source code.
-- **`tests/`**: Benchmarks and test scripts.
-- **`scripts/`**: Utility scripts for downloading LLVM and managing patches.
-- **`externalDeps/`**: Downloaded LLVM source code.
+Target-specific code lives under `lib/Targets/<arch>/` + `include/Targets/<arch>/`
+(MSP430 is the implemented target; `lib/Targets/ESP32-C6/` is a parked,
+data-only model). The reusable layer is `Graph/`, `Analysis/`, `MIRPasses/`,
+`ILP/`, `Pipeline/`, `Utility/`.
 
 ## Prerequisites
 
-- **LLVM 20.1.8**: Automatically downloaded by the build scripts.
-- **ILP Solver**: Gurobi (Commercial) or HiGHS (Open Source).
-- **Clang**: System clang for building.
-- **CMake & Ninja**: Build system.
-- **curl & tar**: For downloading LLVM source.
+- **LLVM 20.1.8** — auto-downloaded by the build scripts.
+- **ILP solver** — Gurobi (commercial) or HiGHS (open source); either is fine.
+- **Clang**, **CMake**, **Ninja**, **curl & tar**.
 
-## Quick Start
-
-### 1. Download and Configure
-
-From the LLTA workspace root:
+## Quick start
 
 ```bash
-./config.sh config
+./config.sh config      # download LLVM (first time), apply patches, configure
+./config.sh build       # build the `llta` tool (+ LoopBoundPlugin)
+python3 tests/regression_test.py   # WCET regression on the MSP430 benchmarks
 ```
 
-This will:
-
-- Download LLVM 20.1.8 source if not present
-- Apply any custom patches if available
-- Configure the build with CMake
-
-### 2. Build
-
-```bash
-./config.sh build
-```
-
-Or build everything including clang:
-
-```bash
-./config.sh build-all
-```
-
-## Build Script Commands
-
-The `config.sh` script provides several commands:
-
-```bash
-./config.sh download    # Download LLVM 20.1.8 source
-./config.sh patch       # Apply custom patches
-./config.sh config      # Configure build (auto-downloads if needed)
-./config.sh build       # Build LLTA target only
-./config.sh build-all   # Build all targets (LLTA, clang, etc.)
-```
-
-## Management Scripts
-
-### Download LLVM Source
-
-Located at `scripts/download_llvm.sh`:
-
-```bash
-./scripts/download_llvm.sh
-```
-
-Downloads LLVM 20.1.8 source tarball from GitHub releases and extracts it to `externalDeps/llvm-project-20.1.8.src/`.
-
-### Patch Management
-
-Located at `scripts/create_llvm_patch.sh`:
-
-**Create a patch** from modifications:
-```bash
-./scripts/create_llvm_patch.sh create
-```
-
-Compares `externalDeps/llvm-project-20.1.8.src.original/` (base) with `externalDeps/llvm-project-20.1.8.src/` (modified) and generates `scripts/llvm-20.1.8-custom.patch`.
-
-**Apply a patch**:
-```bash
-./scripts/create_llvm_patch.sh apply
-```
-
-Applies the patch file to the modified LLVM source.
-
-## Updating to a New LLVM Version
-
-When updating LLTA to work with a new LLVM version, follow these steps:
-
-### 1. Update Version Configuration
-
-Edit the following files and update the `LLVM_VERSION` variable:
-
-- `scripts/download_llvm.sh`
-- `scripts/create_llvm_patch.sh`
-- `config.sh`
-
-Example:
-
-```bash
-LLVM_VERSION="20.2.0"  # Update to new version
-```
-
-### 2. Download New LLVM Source
-
-```bash
-./scripts/download_llvm.sh
-```
-
-This downloads and extracts the new LLVM version to `externalDeps/llvm-project-<version>.src/`.
-
-### 3. Create a Backup (Original) Copy
-
-```bash
-cp -r externalDeps/llvm-project-<version>.src externalDeps/llvm-project-<version>.src.original
-```
-
-This creates the base version for patch generation.
-
-### 4. Copy LLTA Base (llc)
-
-LLTA is based on LLVM's `llc` tool. Copy the new version:
-
-```bash
-# Copy the new llc tool files
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/llc.cpp LLTA.cpp
-
-# If there's a NewPMDriver, copy it too
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/NewPMDriver.cpp NewPMDriver.cpp
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/NewPMDriver.h NewPMDriver.h
-```
-
-### 5. Apply LLTA Modifications
-
-Manually re-apply the LLTA-specific modifications to the copied files:
-
-- Integrate analysis passes into the MIR pipeline
-- Add custom command-line options
-- Include LLTA headers and initialization code
-- Register custom passes
-
-Refer to existing modifications or the old patch file as a guide.
-
-### 6. Apply Additional LLVM Modifications
-
-If the existing patch file has modifications to other LLVM files (beyond llc), apply those to the new LLVM source:
-
-```bash
-# If you have an old patch, try applying it (may need manual fixes)
-cd externalDeps/llvm-project-<version>.src
-patch -p1 < ../../scripts/llvm-<old-version>-custom.patch
-```
-
-Resolve any conflicts manually.
-
-### 7. Generate New Patch File
-
-Once all modifications are complete:
-
-```bash
-./scripts/create_llvm_patch.sh create
-```
-
-This generates `scripts/llvm-<version>-custom.patch` containing all differences between the original and modified LLVM source.
-
-### 8. Test the Build
-
-```bash
-./config.sh config
-./config.sh build
-```
-
-Verify that LLTA builds and runs correctly with the new LLVM version.
-
-### 9. Update Documentation
-
-Update version references in:
-
-- This README.md
-- CMakeLists.txt files
-- Any version-specific documentation
-
-## Detailed Build Instructions
-
-### Manual Configuration (Advanced)
-
-If you need to configure manually or customize the build:
-
-```bash
-CC=clang CXX=clang++ cmake \
-    -S externalDeps/llvm-project-20.1.8.src/llvm \
-    -B build \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-    -DLLVM_ENABLE_RTTI=ON \
-    -DLLVM_INCLUDE_BENCHMARKS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_OPTIMIZED_TABLEGEN=ON \
-    -DLLVM_TARGETS_TO_BUILD='MSP430' \
-    -DLLVM_EXTERNAL_LLTA_SOURCE_DIR=./LLTA \
-    -DLLVM_EXTERNAL_CLANG_PLUGIN_SOURCE_DIR=./clang-plugin \
-    -DLLVM_EXTERNAL_PROJECTS='LLTA;clang-plugin' \
-    -DLLVM_ENABLE_PROJECTS='clang' \
-    -DCLANG_SOURCE_DIR=externalDeps/llvm-project-20.1.8.src/clang \
-    -DLLVM_USE_LINKER=lld \
-    -GNinja
-```
-
-### Manual Build
-
-```bash
-cd build
-ninja llta
-```
-
-To build the Clang plugin as well (required for tests):
-
-```bash
-ninja LoopBoundPlugin
-```
+`config.sh` commands: `download`, `patch`, `config`, `build`, `build-all`,
+`clean`, `mrproper`.
 
 ## Usage
 
-### 1. Running LLTA
-
-`llta` is used similarly to `llc`. It takes an LLVM IR file (`.ll` or `.bc`) as input.
+`llta` takes an LLVM IR file (`.ll`/`.bc`), like `llc`:
 
 ```bash
 ./build/bin/llta <input.ll> [options]
 ```
 
-**Common Options:**
+Common options:
 
-- `-march=<arch>`: Specify target architecture (e.g., `msp430`).
-- `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction, the static targets of jumps/calls, and the program's data/heap objects.
-- `-start-function=<name>`: Entry point for analysis (default: `main`).
-- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Identifies which instruction fetches are FRAM-resident for the FRAM timing models below.
-- `-fram-wait-states=<n>`: MSP430 FRAM wait states charged per FRAM instruction-fetch word (no-cache model; `0` disables, the default). Typical FR5994 values: ≤8 MHz → 0, >8–16 MHz → 1, >16–24 MHz → 2. Requires `-fram-start`.
-- `-fram-cache`: Enable the FRAM read-cache must-analysis (a sound refinement of `-fram-wait-states`: charges the wait-state penalty only for fetches not provably cache hits). Supersedes the no-cache model when set. Requires `-fram-wait-states > 0` and `-fram-start`.
-- `-fram-cache-policy=<unknown|lru|fifo>`: Replacement-policy module for the must-analysis. `unknown` (default) is adversarial and sound for the undocumented FR5994 policy; `lru`/`fifo` are tighter but sound only if the device matches that policy.
-- `-fram-cache-sets`, `-fram-cache-ways`, `-fram-cache-line-bytes`: Cache geometry (FR5994 defaults `2`, `2`, `8`).
-- `-fram-cache-verbose`: Additionally run a sound may-analysis and report accesses proven never cached (`always-miss`). Diagnostic only; does not change the WCET.
-- `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses with resolved jump/call targets, the parsed data-object table, encoding cross-check mismatches and offset repairs) for the analysed functions.
+- `-march=<arch>` — target architecture (e.g. `msp430`).
+- `-start-function=<name>` — analysis entry point (default `main`).
+- `-dump-file=<path>` — objdump disassembly (`objdump -Dl`) of the linked ELF;
+  used by `AdressResolverPass` to recover real instruction addresses, static
+  jump/call targets, and data objects.
+- `-ilp-solver=<auto|gurobi|highs>` — abstract ILP backend (`auto` prefers
+  Gurobi if licensed, else HiGHS).
+- `-loop-bounds-json=<path>` — loop bounds from the clang plugin.
 
-### 2. Preparing Input Files
+MSP430(FR) target options (owned by the MSP430 target): `-fram-start=<hex>`,
+`-fram-wait-states=<n>`, `-fram-cache`, `-fram-cache-policy`,
+`-fram-cache-sets/-ways/-line-bytes`, `-fram-cache-verbose`. These are no-ops
+unless set, so default runs are unaffected. See `docs/OVERVIEW.md` and
+`--help` for the full list.
 
-For the analysis to work correctly, especially Loop Bound detection, the input LLVM IR must be in a canonical form.
+### Preparing input
 
-**Recommended Optimization:**
-Use `opt` to prepare your `.ll` files:
+For loop-bound detection, the IR must be canonical (rotated loops for SCEV):
 
 ```bash
 opt -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' input.ll -S -o input_opt.ll
 ```
 
-*Note: `loop-rotate` is critical for ScalarEvolution (SCEV) to detect loop bounds.*
-
-### 3. Annotating Loop Bounds
-
-For loops where SCEV cannot determine bounds, use the `LoopBoundPlugin` and pragmas in your C code:
+For loops SCEV can't bound, annotate in C with the `LoopBoundPlugin`:
 
 ```c
 #pragma loop_bound(1, 10)
 for (int i = 0; i < n; i++) { ... }
 ```
 
-See `LLTA/clang-plugin/README.md` for details.
+See [`clang-plugin/README.md`](clang-plugin/README.md).
 
-## Analysis Passes
-
-LLTA injects several passes into the backend pipeline (in this order):
-
-1. **`CallSplitterPass`**: Manages context sensitivity by splitting function calls.
-2. **`AsmDumpAndCheckPass`**: Verifies the generated assembly against expected output.
-3. **`AdressResolverPass`**: Discovers the real absolute address of every analysed instruction by aligning the `-dump-file` objdump disassembly with the Machine IR (function + in-order walk), and stores an `MachineInstr* → address` map in `TimingAnalysisResults`. Alignment is validated by re-encoding "simple" (register/immediate) instructions and byte-comparing against the dump, which also re-synchronises around inline asm. It also extracts static jump/call targets (from each control-flow instruction's `;abs`/`;#` comment) into an `MachineInstr* → target` map, and records data/heap objects (name/address/size/section) from the dump's data sections. Also stores the `-fram-start` region.
-4. **`InstructionLatencyPass`**: Assigns execution latency to each machine instruction based on the target model.
-5. **`MachineLoopBoundAgregatorPass`**: Collects loop bounds from SCEV and manual annotations (JSON).
-6. **`FillMuGraphPass`**: Constructs a graph representing the micro-architectural state.
-7. **`PathAnalysisPass`**: Formulates the WCET problem as an Integer Linear Program (ILP) and solves it using Gurobi or HiGHS.
-8. **`MIRtoIRPass`**: Converts internal results back to a form suitable for output/reporting.
-### 1. Download and Configure
-
-From the LLTA workspace root:
-
-```bash
-./config.sh config
-```
-
-This will:
-
-- Download LLVM 20.1.8 source if not present
-- Apply any custom patches if available
-- Configure the build with CMake
-
-### 2. Build
-
-```bash
-./config.sh build
-```
-
-Or build everything including clang:
-
-```bash
-./config.sh build-all
-```
-
-## Build Script Commands
-
-The `config.sh` script provides several commands:
-
-```bash
-./config.sh download    # Download LLVM 20.1.8 source
-./config.sh patch       # Apply custom patches
-./config.sh config      # Configure build (auto-downloads if needed)
-./config.sh build       # Build LLTA target only
-./config.sh build-all   # Build all targets (LLTA, clang, etc.)
-```
-
-## Management Scripts
-
-### Download LLVM Source
-
-Located at `scripts/download_llvm.sh`:
-
-```bash
-./scripts/download_llvm.sh
-```
-
-Downloads LLVM 20.1.8 source tarball from GitHub releases and extracts it to `externalDeps/llvm-project-20.1.8.src/`.
-
-### Patch Management
-
-Located at `scripts/create_llvm_patch.sh`:
-
-**Create a patch** from modifications:
-```bash
-./scripts/create_llvm_patch.sh create
-```
-
-Compares `externalDeps/llvm-project-20.1.8.src.original/` (base) with `externalDeps/llvm-project-20.1.8.src/` (modified) and generates `scripts/llvm-20.1.8-custom.patch`.
-
-**Apply a patch**:
-```bash
-./scripts/create_llvm_patch.sh apply
-```
-
-Applies the patch file to the modified LLVM source.
-
-## Updating to a New LLVM Version
-
-When updating LLTA to work with a new LLVM version, follow these steps:
-
-### 1. Update Version Configuration
-
-Edit the following files and update the `LLVM_VERSION` variable:
-
-- `scripts/download_llvm.sh`
-- `scripts/create_llvm_patch.sh`
-- `config.sh`
-
-Example:
-
-```bash
-LLVM_VERSION="20.2.0"  # Update to new version
-```
-
-### 2. Download New LLVM Source
-
-```bash
-./scripts/download_llvm.sh
-```
-
-This downloads and extracts the new LLVM version to `externalDeps/llvm-project-<version>.src/`.
-
-### 3. Create a Backup (Original) Copy
-
-```bash
-cp -r externalDeps/llvm-project-<version>.src externalDeps/llvm-project-<version>.src.original
-```
-
-This creates the base version for patch generation.
-
-### 4. Copy LLTA Base (llc)
-
-LLTA is based on LLVM's `llc` tool. Copy the new version:
-
-```bash
-# Copy the new llc tool files
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/llc.cpp LLTA.cpp
-
-# If there's a NewPMDriver, copy it too
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/NewPMDriver.cpp NewPMDriver.cpp
-cp externalDeps/llvm-project-<version>.src/llvm/tools/llc/NewPMDriver.h NewPMDriver.h
-```
-
-### 5. Apply LLTA Modifications
-
-Manually re-apply the LLTA-specific modifications to the copied files:
-
-- Integrate analysis passes into the MIR pipeline
-- Add custom command-line options
-- Include LLTA headers and initialization code
-- Register custom passes
-
-Refer to existing modifications or the old patch file as a guide.
-
-### 6. Apply Additional LLVM Modifications
-
-If the existing patch file has modifications to other LLVM files (beyond llc), apply those to the new LLVM source:
-
-```bash
-# If you have an old patch, try applying it (may need manual fixes)
-cd externalDeps/llvm-project-<version>.src
-patch -p1 < ../../scripts/llvm-<old-version>-custom.patch
-```
-
-Resolve any conflicts manually.
-
-### 7. Generate New Patch File
-
-Once all modifications are complete:
-
-```bash
-./scripts/create_llvm_patch.sh create
-```
-
-This generates `scripts/llvm-<version>-custom.patch` containing all differences between the original and modified LLVM source.
-
-### 8. Test the Build
-
-```bash
-./config.sh config
-./config.sh build
-```
-
-Verify that LLTA builds and runs correctly with the new LLVM version.
-
-### 9. Update Documentation
-
-Update version references in:
-
-- This README.md
-- CMakeLists.txt files
-- Any version-specific documentation
-
-## Detailed Build Instructions
-
-### Manual Configuration (Advanced)
-
-If you need to configure manually or customize the build:
+## Manual build (advanced)
 
 ```bash
 CC=clang CXX=clang++ cmake \
-    -S externalDeps/llvm-project-20.1.8.src/llvm \
-    -B build \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-    -DLLVM_ENABLE_RTTI=ON \
-    -DLLVM_INCLUDE_BENCHMARKS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_OPTIMIZED_TABLEGEN=ON \
-    -DLLVM_TARGETS_TO_BUILD='MSP430' \
+    -S externalDeps/llvm-project-20.1.8.src/llvm -B build \
+    -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
+    -DLLVM_ENABLE_RTTI=ON -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF \
+    -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_TARGETS_TO_BUILD='MSP430;RISCV' \
     -DLLVM_EXTERNAL_LLTA_SOURCE_DIR=./LLTA \
     -DLLVM_EXTERNAL_CLANG_PLUGIN_SOURCE_DIR=./clang-plugin \
     -DLLVM_EXTERNAL_PROJECTS='LLTA;clang-plugin' \
     -DLLVM_ENABLE_PROJECTS='clang' \
     -DCLANG_SOURCE_DIR=externalDeps/llvm-project-20.1.8.src/clang \
-    -DLLVM_USE_LINKER=lld \
-    -GNinja
+    -DLLVM_USE_LINKER=lld -GNinja
+cd build && ninja llta LoopBoundPlugin
 ```
 
-### Manual Build
+## Updating to a new LLVM version
 
-```bash
-cd build
-ninja llta
-```
+LLTA is based on LLVM's `llc` and built as an external LLVM project, with custom
+LLVM changes carried in a patch.
 
-To build the Clang plugin as well (required for tests):
+1. Bump `LLVM_VERSION` in `scripts/download_llvm.sh`,
+   `scripts/create_llvm_patch.sh`, and `config.sh`.
+2. `./scripts/download_llvm.sh` to fetch + extract the new source.
+3. Keep a pristine copy for patch generation:
+   `cp -r externalDeps/llvm-project-<v>.src externalDeps/llvm-project-<v>.src.original`.
+4. Re-base the tool on the new `llc`: copy `llc.cpp` → `LLTA.cpp` and
+   `NewPMDriver.{cpp,h}`, then re-apply the LLTA modifications (pass injection,
+   CLI options, headers/initialization, pass registration) — use the old patch
+   as a guide.
+5. Apply any other LLVM-side changes from the old patch; resolve conflicts.
+6. `./scripts/create_llvm_patch.sh create` to regenerate
+   `scripts/llvm-<v>-custom.patch`.
+7. `./config.sh config && ./config.sh build` and verify the regression suite.
+8. Update version references here and in the CMake files.
 
-```bash
-ninja LoopBoundPlugin
-```
+Patch helpers: `./scripts/create_llvm_patch.sh {create|apply}` diff/apply against
+the `.original` tree.
 
-## Usage
+## Supported targets
 
-### 1. Running LLTA
-
-`llta` is used similarly to `llc`. It takes an LLVM IR file (`.ll` or `.bc`) as input.
-
-```bash
-./build/bin/llta <input.ll> [options]
-```
-
-**Common Options:**
-
-- `-march=<arch>`: Specify target architecture (e.g., `msp430`).
-- `-dump-file=<path>`: Path to the objdump disassembly (`objdump -Dl`) of the linked ELF. Used by `AdressResolverPass` to discover the real absolute address of every analysed instruction, the static targets of jumps/calls, and the program's data/heap objects.
-- `-start-function=<name>`: Entry point for analysis (default: `main`).
-- `-fram-start=<hex>`: Start address of the MSP430 FRAM region (e.g. `0x4000`). Identifies which instruction fetches are FRAM-resident for the FRAM timing models below.
-- `-fram-wait-states=<n>`: MSP430 FRAM wait states charged per FRAM instruction-fetch word (no-cache model; `0` disables, the default). Typical FR5994 values: ≤8 MHz → 0, >8–16 MHz → 1, >16–24 MHz → 2. Requires `-fram-start`.
-- `-fram-cache`: Enable the FRAM read-cache must-analysis (a sound refinement of `-fram-wait-states`: charges the wait-state penalty only for fetches not provably cache hits). Supersedes the no-cache model when set. Requires `-fram-wait-states > 0` and `-fram-start`.
-- `-fram-cache-policy=<unknown|lru|fifo>`: Replacement-policy module for the must-analysis. `unknown` (default) is adversarial and sound for the undocumented FR5994 policy; `lru`/`fifo` are tighter but sound only if the device matches that policy.
-- `-fram-cache-sets`, `-fram-cache-ways`, `-fram-cache-line-bytes`: Cache geometry (FR5994 defaults `2`, `2`, `8`).
-- `-fram-cache-verbose`: Additionally run a sound may-analysis and report accesses proven never cached (`always-miss`). Diagnostic only; does not change the WCET.
-- `-address-resolver-verbose`: Print detailed address-resolution diagnostics (per-instruction addresses with resolved jump/call targets, the parsed data-object table, encoding cross-check mismatches and offset repairs) for the analysed functions.
-
-### 2. Preparing Input Files
-
-For the analysis to work correctly, especially Loop Bound detection, the input LLVM IR must be in a canonical form.
-
-**Recommended Optimization:**
-Use `opt` to prepare your `.ll` files:
-
-```bash
-opt -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' input.ll -S -o input_opt.ll
-```
-
-*Note: `loop-rotate` is critical for ScalarEvolution (SCEV) to detect loop bounds.*
-
-### 3. Annotating Loop Bounds
-
-For loops where SCEV cannot determine bounds, use the `LoopBoundPlugin` and pragmas in your C code:
-
-```c
-#pragma loop_bound(1, 10)
-for (int i = 0; i < n; i++) { ... }
-```
-
-See `LLTA/clang-plugin/README.md` for details.
-
-## Analysis Passes
-
-LLTA injects several passes into the backend pipeline:
-
-1. **`MachineLoopBoundAgregatorPass`**: Collects loop bounds from SCEV and manual annotations (JSON).
-2. **`InstructionLatencyPass`**: Assigns execution latency to each machine instruction based on the target model.
-3. **`FillMuGraphPass`**: Constructs a graph representing the micro-architectural state.
-4. **`PathAnalysisPass`**: Formulates the WCET problem as an Integer Linear Program (ILP) and solves it using Gurobi.
-5. **`AdressResolverPass`**: Discovers the real absolute address of every analysed instruction by aligning the `-dump-file` objdump disassembly with the Machine IR (function + in-order walk), and stores an `MachineInstr* → address` map in `TimingAnalysisResults`. Alignment is validated by re-encoding "simple" (register/immediate) instructions and byte-comparing against the dump, which also re-synchronises around inline asm. It also extracts static jump/call targets (from each control-flow instruction's `;abs`/`;#` comment) into an `MachineInstr* → target` map, and records data/heap objects (name/address/size/section) from the dump's data sections. Also stores the `-fram-start` region.
-6. **`CallSplitterPass`**: Manages context sensitivity by splitting function calls.
-7. **`AsmDumpAndCheckPass`**: Verifies the generated assembly against expected output.
-
-## Supported Targets
-
-- **MSP430**: Full support including micro-architectural modeling.
+- **MSP430** (device: MSP430FR5994) — implemented.
+- **ESP32-C6** (RISC-V RV32IMAC) — empirical model parked in
+  `lib/Targets/ESP32-C6/`; not yet implemented.
 
 ## Testing
 
-Tests are located in `LLTA/tests/`.
-
-Unit tests for the modular cache analysis (`include/Analysis/Cache/`) live in
-`tests/unit/`. Build and run them with either:
-
-```bash
-cmake --build <build-dir> --target check-llta-cache   # builds + runs directly
-ctest --test-dir <build-dir>/tools/LLTA -R LLTACacheModuleTests
-```
-
-The end-to-end WCET regression (in-tree MSP430 cases) is:
-
-```bash
-python3 LLTA/tests/regression_test.py
-```
-
-To generate loop bounds for a test case:
-
-```bash
-./LLTA/tests/generate_loop_bounds.sh msp430 cnt
-```
-
-To run a debug session (VS Code):
-
-1. Select "dbg cnt MSP430" in the Run and Debug view.
-2. Press F5.
+`python3 tests/regression_test.py` analyzes the MSP430 benchmarks and checks the
+WCET against known baselines. Unit tests for generic components are under
+`tests/unit/` (CTest). A refactor must leave the WCET unchanged.

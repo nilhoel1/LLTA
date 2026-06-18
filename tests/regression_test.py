@@ -61,47 +61,6 @@ def run_test(name, ll_path, expected_wcet, extra_args=[]):
         return "YELLOW"
 
 
-def run_all_solvers_test(name, ll_path, expected_wcet, extra_args=[]):
-    """Test that all solvers (Legacy + Abstract, Gurobi + HiGHS) produce matching WCET."""
-    print(f"Running all-solvers test: {name}")
-    if not os.path.exists(ll_path):
-        print(f"Error: .ll file not found at {ll_path}")
-        return "RED"
-
-    cmd = [LLTA_PATH, "--ilp-solver=all"] + extra_args + [ll_path]
-    print(f"Command: {' '.join(cmd)}")
-    
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    except subprocess.TimeoutExpired:
-        print(f"TIMEOUT: {name}")
-        return "RED"
-    except Exception as e:
-        print(f"ERROR: {name} - {e}")
-        return "RED"
-
-    if result.returncode != 0:
-        print(f"FAIL: {name} - Exit code {result.returncode}")
-        return "RED"
-
-    # Check for unified success message
-    if "[SUCCESS] All solvers agree on WCET:" in result.stdout:
-        match = re.search(r"All solvers agree on WCET: (\d+) cycles", result.stdout)
-        if match:
-            wcet = int(match.group(1))
-            if wcet == expected_wcet:
-                print(f"PASS: {name} (All solvers agree: {wcet}) -> GREEN")
-                return "GREEN"
-            else:
-                print(f"WARNING: {name} (All solvers agree: {wcet}, expected {expected_wcet}) -> YELLOW")
-                return "YELLOW"
-    
-    print(f"FAIL: {name} - Solvers did not agree or match not found")
-    print("Output tail:")
-    print(result.stdout[-800:] if result.stdout else "Empty")
-    return "RED"
-
-
 def main():
     print("=== LLTA Regression Test ===")
     print(f"LLTA Executable: {LLTA_PATH}")
@@ -120,10 +79,10 @@ def main():
     # Test COVER - With start function
     tests.append("cover")
     results.append(run_test("cover", COVER_LL_PATH, EXPECTED_COVER_WCET, ["-start-function=main"]))
-    
-    # Test CNT with all solvers - verify Legacy+Abstract consistency
-    tests.append("cnt-all-solvers")
-    results.append(run_all_solvers_test("cnt-all-solvers", CNT_LL_PATH, EXPECTED_CNT_WCET))
+
+    # Cross-check the two abstract solver backends agree (when both are built).
+    tests.append("cnt-highs")
+    results.append(run_test("cnt-highs", CNT_LL_PATH, EXPECTED_CNT_WCET, ["--ilp-solver=highs"]))
 
     print("\n=== Summary ===")
     

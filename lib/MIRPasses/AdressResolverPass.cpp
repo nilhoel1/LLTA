@@ -1,4 +1,6 @@
 #include "MIRPasses/AdressResolverPass.h"
+#include "Targets/MSP430/MSP430Options.h"
+#include "Targets/RTTarget.h"
 #include "TimingAnalysisResults.h"
 #include "Utility/Options.h"
 
@@ -19,9 +21,11 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <algorithm>
 #include <climits>
@@ -129,6 +133,11 @@ bool AdressResolverPass::isAnalyzed(const MachineFunction &F) const {
 }
 
 bool AdressResolverPass::doInitialization(Module &M) {
+  // Dump parsing below needs the target's (target-specific) control-flow
+  // mnemonic set and branch-target comment parsing. The target is installed
+  // when the pass pipeline is built, before this runs.
+  Target = &TAR.getTarget();
+
   parseFile(DumpFilename);
 
   // Collect sorted, unique function entry addresses so we can derive the end of
@@ -258,36 +267,6 @@ AdressResolverPass::classifySection(StringRef Name) {
   return SectionClass::Data;
 }
 
-bool AdressResolverPass::isControlFlowMnemonic(StringRef Mnemonic) {
-  // MSP430 jumps (real + emulated), plus call and br.
-  static const char *const CF[] = {"jmp", "jeq", "jz",  "jne", "jnz", "jc",
-                                   "jhs", "jnc", "jlo", "jn",  "jge", "jl",
-                                   "call", "br"};
-  for (const char *M : CF)
-    if (Mnemonic == M)
-      return true;
-  return false;
-}
-
-void AdressResolverPass::resolveTarget(StringRef Mnemonic, StringRef Comment,
-                                       DumpInstruction &Out) {
-  if (!isControlFlowMnemonic(Mnemonic))
-    return;
-  StringRef C = Comment.trim();
-  // Jumps print "abs 0x4056"; calls/br print "#0x402c".
-  if (C.consume_front("abs"))
-    C = C.trim();
-  else if (C.consume_front("#"))
-    C = C.trim();
-  else
-    return;
-  uint64_t Target = 0;
-  if (C.getAsInteger(0, Target)) // 0 => honour the "0x" prefix
-    return;
-  Out.TargetAddress = Target;
-  Out.HasTarget = true;
-}
-
 /// Parses a symbol header line of the form "0000401c <main>:" into its address
 /// and symbol name. Returns false for anything else.
 bool AdressResolverPass::parseHeaderLine(const std::string &Line, uint64_t &Addr,
@@ -381,9 +360,15 @@ bool AdressResolverPass::parseInstructionLine(const std::string &Line,
   HasAsm = !Asm.empty();
 
   // The first asm token is the mnemonic; resolve a static target from the
-  // comment for control-flow instructions.
+  // comment for control-flow instructions via the active target.
   StringRef Mnemonic = StringRef(Out.AssemblerCode).split(' ').first;
-  resolveTarget(Mnemonic, Comment, Out);
+  if (Target) {
+    if (std::optional<uint64_t> T =
+            Target->resolveBranchTarget(Mnemonic, Comment)) {
+      Out.TargetAddress = *T;
+      Out.HasTarget = true;
+    }
+  }
   return true;
 }
 

@@ -1,5 +1,5 @@
 #include "Analysis/GraphAdapter.h"
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"

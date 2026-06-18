@@ -1,13 +1,19 @@
 #ifndef TIMING_ANALYSIS_RESULTS_H
 #define TIMING_ANALYSIS_RESULTS_H
 
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace llta {
+class RTTarget;
+} // namespace llta
+
 namespace llvm {
 
 class MachineInstr;
@@ -18,6 +24,24 @@ class MachineInstr;
 // passes.
 class TimingAnalysisResults {
 public:
+  TimingAnalysisResults();
+  ~TimingAnalysisResults();
+
+  // START: Active Target
+  // The timing-analysis target (a concrete device) that describes the
+  // architecture under analysis. Resolved once from the LLVM Triple (via the
+  // target registry) when the pass pipeline is built, then queried by generic
+  // passes instead of switching on the arch.
+  std::unique_ptr<llta::RTTarget> ActiveTarget;
+
+  /// Install the active target (takes ownership). Called once while building
+  /// the pass pipeline, before any pass runs.
+  void setTarget(std::unique_ptr<llta::RTTarget> Target);
+
+  /// Return the active target. Asserts setTarget() was called first.
+  const llta::RTTarget &getTarget() const;
+  // END: Active Target
+
   // START: Instruction Latency Pass Containers
   std::unordered_map<const MachineBasicBlock *, unsigned int> MBBLatencyMap;
   bool MBBLatencyMapSet = false;

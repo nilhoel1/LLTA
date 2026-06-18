@@ -1,4 +1,5 @@
-#include "MIRPasses/FRAMWaitStatePass.h"
+#include "Targets/MSP430/FRAMWaitStatePass.h"
+#include "Targets/MSP430/MSP430Options.h"
 #include "TimingAnalysisResults.h"
 #include "Utility/InstructionWords.h"
 #include "Utility/Options.h"

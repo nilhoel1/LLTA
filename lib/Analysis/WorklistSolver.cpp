@@ -1,5 +1,5 @@
 #include "Analysis/WorklistSolver.h"
-#include "RTTargets/ProgramGraph.h" // For access to ProgramGraph utilities if needed, but we used AbstractStateGraph
+#include "Graph/ProgramGraph.h" // For access to ProgramGraph utilities if needed, but we used AbstractStateGraph
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/IR/Function.h"

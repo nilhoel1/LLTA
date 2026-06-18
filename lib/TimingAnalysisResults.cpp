@@ -1,6 +1,28 @@
 #include "TimingAnalysisResults.h"
 
+#include "Targets/RTTarget.h"
+
+#include <cassert>
+#include <utility>
+
 namespace llvm {
+
+// Defined out-of-line so the unique_ptr<llta::RTTarget> member can be held with
+// an incomplete type in the header.
+TimingAnalysisResults::TimingAnalysisResults() = default;
+TimingAnalysisResults::~TimingAnalysisResults() = default;
+
+// START: Active Target
+void TimingAnalysisResults::setTarget(std::unique_ptr<llta::RTTarget> Target) {
+  ActiveTarget = std::move(Target);
+}
+
+const llta::RTTarget &TimingAnalysisResults::getTarget() const {
+  assert(ActiveTarget &&
+         "active target not set; setTarget() must run before any pass");
+  return *ActiveTarget;
+}
+// END: Active Target
 
 // START: Instruction Latency Pass Containers
 void TimingAnalysisResults::setMBBLatencyMap(

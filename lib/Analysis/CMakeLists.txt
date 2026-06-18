@@ -12,5 +12,5 @@ add_llvm_library(lltaAnalysis
   intrinsics_gen
 
   LINK_LIBS
-  lltaRTTargets
+  lltaGraph
 )

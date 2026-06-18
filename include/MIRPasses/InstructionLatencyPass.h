@@ -11,10 +11,11 @@
 namespace llvm {
 
 /**
- * This pass sums up the instruction Latency of each basic block in a
- * function. It is used to check if the instruction latencies are implemented.
- * TODO: The current implementation assumes that MSP430X is used.
- * It further assumes no Pipeline, which is true for the MSP430X.
+ * This pass sums up the base instruction latency of each basic block in a
+ * function into MBBLatencyMap. The per-instruction latency comes from the
+ * active target (RTTarget::getInstructionLatency), so the pass itself is
+ * target-agnostic. Memory penalties (e.g. FRAM wait states) are added later by
+ * the target's contributed memory-model passes.
  */
 class InstructionLatencyPass : public MachineFunctionPass {
 public:
@@ -45,8 +46,6 @@ public:
   virtual llvm::StringRef getPassName() const override {
     return "ARM Timing Analysis Result Dump Pass";
   }
-
-  unsigned int getMSP430Latency(const MachineInstr &I);
 };
 
 MachineFunctionPass *createInstructionLatencyPass(TimingAnalysisResults &TAR);

@@ -3,7 +3,7 @@
 
 #include "AbstractAnalysable.h"
 #include "AbstractStateGraph.h"
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "TimingAnalysisResults.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"

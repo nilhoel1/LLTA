@@ -5,8 +5,6 @@ add_llvm_library(lltaMPasses
   TimingAnalysisPasses.cpp
   AdressResolverPass.cpp
   InstructionLatencyPass.cpp
-  FRAMWaitStatePass.cpp
-  FRAMCacheAnalysisPass.cpp
   PathAnalysisPass.cpp
   MachineLoopBoundAgregatorPass.cpp
   FillMuGraphPass.cpp
@@ -14,5 +12,5 @@ add_llvm_library(lltaMPasses
   WCETAnalysisPipeline.cpp
 
   DEPENDS LLVMAnalysis LLVMCodeGen LLVMCore LLVMSupport LLVMTarget
-  LINK_LIBS TimingAnalysisBase lltaRTTargets lltaUtility lltaILP lltaAnalysis
+  LINK_LIBS TimingAnalysisBase lltaTargets lltaGraph lltaUtility lltaILP lltaAnalysis
 )

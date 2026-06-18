@@ -33,7 +33,6 @@ public:
   virtual llvm::StringRef getPassName() const override {
     return "ARM Timing Analysis Result Dump Pass";
   }
-  void checkMSP430Instruction(const MachineInstr &I);
 };
 
 } // namespace llvm

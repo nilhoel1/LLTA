@@ -2,7 +2,7 @@
 #define GRAPH_ADAPTER_H
 
 #include "Analysis/AbstractStateGraph.h"
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 
 namespace llvm {
 

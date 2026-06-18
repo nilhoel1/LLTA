@@ -9,6 +9,10 @@
 #include <string>
 #include <vector>
 
+namespace llta {
+class RTTarget;
+} // namespace llta
+
 namespace llvm {
 
 class MCContext;
@@ -89,13 +93,11 @@ private:
   static bool isHexStr(StringRef S);
   /// Classify a section name (e.g. ".data") as code, data, or ignorable.
   static SectionClass classifySection(StringRef Name);
-  /// True for an MSP430 jump/call/branch mnemonic that can carry a static
-  /// target in its trailing comment.
-  static bool isControlFlowMnemonic(StringRef Mnemonic);
-  /// If \p Mnemonic is control-flow, parse a static target out of \p Comment
-  /// (the text after ';'), setting Out.HasTarget / Out.TargetAddress.
-  static void resolveTarget(StringRef Mnemonic, StringRef Comment,
-                            DumpInstruction &Out);
+
+  /// Active timing-analysis target, resolved from the module triple in
+  /// doInitialization. Provides the (target-specific) control-flow mnemonic set
+  /// and objdump-comment branch-target parsing used while parsing the dump.
+  const llta::RTTarget *Target = nullptr;
 
   // --- encoding cross-check ---
   void setupEncoder(MachineFunction &F);

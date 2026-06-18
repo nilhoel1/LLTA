@@ -1,6 +1,7 @@
+add_subdirectory(Graph)
+add_subdirectory(Targets)
 add_subdirectory(MIRPasses)
 add_subdirectory(Utility)
-add_subdirectory(RTTargets)
 add_subdirectory(ILP)
 add_subdirectory(Analysis)
 add_subdirectory(Pipeline)

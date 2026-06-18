@@ -1,5 +1,5 @@
 #include "MIRPasses/FillMuGraphPass.h"
-#include "RTTargets/ProgramGraph.h"
+#include "Graph/ProgramGraph.h"
 #include "Utility/Options.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
