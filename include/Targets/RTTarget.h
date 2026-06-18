@@ -12,6 +12,7 @@ namespace llvm {
 class MachineInstr;
 class MachineFunctionPass;
 class TimingAnalysisResults;
+class AbstractAnalysable;
 } // namespace llvm
 
 namespace llta {
@@ -81,6 +82,14 @@ public:
   getMemoryModelPasses(llvm::TimingAnalysisResults &TAR) const {
     return {};
   }
+
+  //===--- Microarchitecture ----------------------------------------------===//
+
+  /// The target's microarchitectural pipeline model, used as the transfer
+  /// function for the abstract-interpretation WorklistSolver in PathAnalysisPass.
+  /// Owned by the target (which outlives the analysis); returned by mutable
+  /// reference because the solver drives it.
+  virtual llvm::AbstractAnalysable &getPipeline() const = 0;
 };
 
 } // namespace llta

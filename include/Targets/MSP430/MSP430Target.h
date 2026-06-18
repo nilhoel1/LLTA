@@ -1,6 +1,7 @@
 #ifndef LLTA_TARGETS_MSP430_MSP430TARGET_H
 #define LLTA_TARGETS_MSP430_MSP430TARGET_H
 
+#include "Targets/MSP430/MSP430Pipeline.h"
 #include "Targets/RTTarget.h"
 
 namespace llvm {
@@ -33,6 +34,13 @@ public:
   std::optional<uint64_t>
   resolveBranchTarget(llvm::StringRef Mnemonic,
                       llvm::StringRef Comment) const override;
+
+  /// MSP430 uses a simple 1-stage pipeline (see MSP430Pipeline). Owned here and
+  /// handed to the WorklistSolver; mutable because the solver drives it.
+  llvm::AbstractAnalysable &getPipeline() const override { return Pipeline; }
+
+private:
+  mutable llvm::MSP430Pipeline Pipeline;
 };
 
 } // namespace llta
