@@ -5,6 +5,7 @@
 ### 1.1 ToDos
 
 - [x] Add MSP430 Toolchain , to build examples here.
+- [x] Extract static jump/call targets and data/heap objects (name/address/size/section) from the dump in `AdressResolverPass`, stored on `TimingAnalysisResults` (foundation; no consumer yet).
 - [ ] Double Check completenes of `AdressResolverPass`.
 - [ ] Link LLVM IR analyses with custom LLTA analyses.
 

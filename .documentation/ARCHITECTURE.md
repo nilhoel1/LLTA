@@ -32,7 +32,20 @@ Resolves the real absolute address of every analysed instruction by aligning the
 - **Parsing**: the dump is parsed into an ordered list of instructions (merging
   multi-word continuation lines) plus a map of real function entries, identified by
   the `<name>:` header immediately followed by a `name():` line (internal `.Loc`/
-  `.Ltmp` labels are not function entries).
+  `.Ltmp` labels are not function entries). Section markers
+  (`Disassembly of section X:`) are tracked so symbols are classified by section:
+  code (`.text`, vectors) vs. data (`.data`/`.bss`/`.rodata`/`.heap`/... — by
+  exclusion) vs. ignorable (`.debug*`, `.comment`, metadata).
+- **Jump/call targets**: for control-flow mnemonics (`jmp`/`j*`/`call`/`br`) the
+  static target is parsed from the trailing comment (`;abs 0x….` for branches,
+  `;#0x….` for calls) and stored as an `MachineInstr* → uint64_t` map on
+  `TimingAnalysisResults` (`getBranchTarget`/`hasBranchTarget`). Indirect transfers
+  (e.g. `call r12`) have no static target.
+- **Data/heap objects**: symbols in data sections are recorded as
+  `{name, address, size, section}` (size derived as next-symbol-address minus own
+  address) and stored on `TimingAnalysisResults`
+  (`getDataObject`/`getDataObjects`). Foundation for memory-region analysis; no
+  timing pass consumes them yet.
 - **Alignment**: for each `MachineFunction`, the dump instructions in its address
   range `[entry, next-entry)` are zipped 1:1 with the function's code-emitting MIs
   (debug/CFI pseudo-instructions are skipped). The result is an

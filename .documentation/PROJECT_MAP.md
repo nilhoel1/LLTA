@@ -11,7 +11,7 @@
         - `FillMuGraphPass.cpp`: Transforms the CFG into a Program Graph.
         - `MachineLoopBoundAgregatorPass.cpp`: Aggregates loop info (header, latch, bounds).
         - `CallSplitterPass.cpp`: Simplifies CFG by splitting basic blocks at call sites.
-        - `AdressResolverPass.cpp`: Discovers real per-instruction addresses by aligning the `-dump-file` objdump disassembly with the Machine IR (with an MC-encoding cross-check); also stores the `-fram-start` region.
+        - `AdressResolverPass.cpp`: Discovers real per-instruction addresses by aligning the `-dump-file` objdump disassembly with the Machine IR (with an MC-encoding cross-check); also extracts static jump/call targets and data/heap objects (name/address/size/section), and stores the `-fram-start` region.
         - `AsmDumpAndCheckPass.cpp`: Verification pass that dumps assembly.
     - **`lib/RTTargets`**: Hardware modeling.
         - `MSP430/MSP430MuArchState.cpp`: MSP430-specific microarchitectural state model.

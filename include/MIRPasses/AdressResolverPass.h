@@ -43,7 +43,13 @@ public:
     std::vector<uint8_t> Bytes;
     std::string MachineCode;   ///< original hex text, for diagnostics
     std::string AssemblerCode; ///< mnemonic + operands, for diagnostics
+    uint64_t TargetAddress = 0; ///< static branch/call target, if any
+    bool HasTarget = false;
   };
+
+  /// Classification of an objdump section, to decide how its symbols are
+  /// treated during parsing.
+  enum class SectionClass { Code, Data, Ignore, Unknown };
 
 private:
   /// Parsed dump instructions, in file order.
@@ -52,6 +58,13 @@ private:
   std::map<std::string, uint64_t> FunctionEntryAddr;
   /// Sorted unique function entry addresses, to compute function end bounds.
   std::vector<uint64_t> SortedEntryAddrs;
+
+  /// Data/heap objects discovered in data sections, staged before being pushed
+  /// into TimingAnalysisResults (sizes are filled in once parsing completes).
+  std::vector<TimingAnalysisResults::DataObject> DataObjects;
+  /// Address of every "<name>:" header (code and data), to derive object sizes
+  /// as "next symbol address minus this address".
+  std::vector<uint64_t> AllSymbolAddrs;
 
   /// Set of functions LLTA actually analyses (call-graph reachable from the
   /// start function). Address resolution still runs for every function, but
@@ -74,6 +87,15 @@ private:
   bool parseInstructionLine(const std::string &Line, DumpInstruction &Out,
                             bool &HasAsm);
   static bool isHexStr(StringRef S);
+  /// Classify a section name (e.g. ".data") as code, data, or ignorable.
+  static SectionClass classifySection(StringRef Name);
+  /// True for an MSP430 jump/call/branch mnemonic that can carry a static
+  /// target in its trailing comment.
+  static bool isControlFlowMnemonic(StringRef Mnemonic);
+  /// If \p Mnemonic is control-flow, parse a static target out of \p Comment
+  /// (the text after ';'), setting Out.HasTarget / Out.TargetAddress.
+  static void resolveTarget(StringRef Mnemonic, StringRef Comment,
+                            DumpInstruction &Out);
 
   // --- encoding cross-check ---
   void setupEncoder(MachineFunction &F);

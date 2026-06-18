@@ -50,6 +50,47 @@ TimingAnalysisResults::getInstructionAddress(const MachineInstr *MI) const {
   return It->second;
 }
 
+void TimingAnalysisResults::setBranchTarget(const MachineInstr *MI,
+                                            uint64_t Target) {
+  BranchTargetMapSet = true;
+  BranchTargetMap[MI] = Target;
+}
+
+bool TimingAnalysisResults::hasBranchTarget(const MachineInstr *MI) const {
+  return BranchTargetMap.count(MI) != 0;
+}
+
+uint64_t TimingAnalysisResults::getBranchTarget(const MachineInstr *MI) const {
+  auto It = BranchTargetMap.find(MI);
+  assert(It != BranchTargetMap.end() &&
+         "No branch target resolved for this MachineInstr");
+  return It->second;
+}
+
+void TimingAnalysisResults::addDataObject(DataObject Obj) {
+  auto It = DataObjectByName.find(Obj.Name);
+  if (It != DataObjectByName.end()) {
+    // Duplicate symbol name (e.g. local statics from different units); keep the
+    // first and skip the rest so the name lookup stays deterministic.
+    return;
+  }
+  DataObjectByName[Obj.Name] = DataObjects.size();
+  DataObjects.push_back(std::move(Obj));
+}
+
+const TimingAnalysisResults::DataObject *
+TimingAnalysisResults::getDataObject(StringRef Name) const {
+  auto It = DataObjectByName.find(Name.str());
+  if (It == DataObjectByName.end())
+    return nullptr;
+  return &DataObjects[It->second];
+}
+
+const std::vector<TimingAnalysisResults::DataObject> &
+TimingAnalysisResults::getDataObjects() const {
+  return DataObjects;
+}
+
 void TimingAnalysisResults::setFRAMStart(uint64_t Address) {
   FRAMStartSet = true;
   FRAMStart = Address;

@@ -137,10 +137,34 @@ bool AdressResolverPass::doInitialization(Module &M) {
     }
   }
 
-  if (AddressResolverVerbose)
+  // Derive each data object's size as "next symbol address minus its own
+  // address", using the sorted set of all symbol header addresses (code+data).
+  std::sort(AllSymbolAddrs.begin(), AllSymbolAddrs.end());
+  AllSymbolAddrs.erase(
+      std::unique(AllSymbolAddrs.begin(), AllSymbolAddrs.end()),
+      AllSymbolAddrs.end());
+  for (auto &Obj : DataObjects) {
+    auto Hi = std::upper_bound(AllSymbolAddrs.begin(), AllSymbolAddrs.end(),
+                               Obj.Address);
+    Obj.Size = (Hi != AllSymbolAddrs.end()) ? (*Hi - Obj.Address) : 0;
+    TAR.addDataObject(Obj);
+  }
+
+  if (AddressResolverVerbose) {
+    size_t Targets = 0;
+    for (const auto &DI : DumpInstructions)
+      if (DI.HasTarget)
+        ++Targets;
     outs() << "[addr-resolver] parsed " << DumpInstructions.size()
-           << " dump instructions and " << FunctionEntryAddr.size()
-           << " function entries from " << DumpFilename << "\n";
+           << " dump instructions, " << FunctionEntryAddr.size()
+           << " function entries, " << DataObjects.size()
+           << " data objects, " << Targets << " static jump/call targets from "
+           << DumpFilename << "\n";
+    for (const auto &Obj : DataObjects)
+      outs() << "[addr-resolver]   data " << Obj.Name << " @0x"
+             << Twine::utohexstr(Obj.Address) << " size " << Obj.Size << " ("
+             << Obj.Section << ")\n";
+  }
   return false;
 }
 
@@ -196,6 +220,52 @@ bool AdressResolverPass::isHexStr(StringRef S) {
   return true;
 }
 
+/// Classifies an objdump section by name. Code = executable sections; Data =
+/// everything that holds objects (.data/.bss/.rodata/.heap/...); Ignore = debug
+/// and metadata. Classification is by exclusion so new data section names
+/// (e.g. .rodata2, .fram_smallheap) are picked up automatically.
+AdressResolverPass::SectionClass
+AdressResolverPass::classifySection(StringRef Name) {
+  if (Name == ".text" || Name.starts_with("__reset_vector") ||
+      Name.starts_with("__interrupt_vector"))
+    return SectionClass::Code;
+  if (Name.starts_with(".debug") || Name == ".comment" ||
+      Name == ".MSP430.attributes" || Name == ".symtab" || Name == ".strtab" ||
+      Name == ".shstrtab")
+    return SectionClass::Ignore;
+  return SectionClass::Data;
+}
+
+bool AdressResolverPass::isControlFlowMnemonic(StringRef Mnemonic) {
+  // MSP430 jumps (real + emulated), plus call and br.
+  static const char *const CF[] = {"jmp", "jeq", "jz",  "jne", "jnz", "jc",
+                                   "jhs", "jnc", "jlo", "jn",  "jge", "jl",
+                                   "call", "br"};
+  for (const char *M : CF)
+    if (Mnemonic == M)
+      return true;
+  return false;
+}
+
+void AdressResolverPass::resolveTarget(StringRef Mnemonic, StringRef Comment,
+                                       DumpInstruction &Out) {
+  if (!isControlFlowMnemonic(Mnemonic))
+    return;
+  StringRef C = Comment.trim();
+  // Jumps print "abs 0x4056"; calls/br print "#0x402c".
+  if (C.consume_front("abs"))
+    C = C.trim();
+  else if (C.consume_front("#"))
+    C = C.trim();
+  else
+    return;
+  uint64_t Target = 0;
+  if (C.getAsInteger(0, Target)) // 0 => honour the "0x" prefix
+    return;
+  Out.TargetAddress = Target;
+  Out.HasTarget = true;
+}
+
 /// Parses a symbol header line of the form "0000401c <main>:" into its address
 /// and symbol name. Returns false for anything else.
 bool AdressResolverPass::parseHeaderLine(const std::string &Line, uint64_t &Addr,
@@ -227,11 +297,14 @@ bool AdressResolverPass::parseInstructionLine(const std::string &Line,
   if (!isHexStr(Left) || Left.getAsInteger(16, Addr))
     return false;
 
-  // Drop any trailing comment.
+  // Split off the trailing comment; it carries the static branch/call target.
   std::string Rest = Line.substr(Colon + 1);
+  std::string Comment;
   std::string::size_type Semi = Rest.find(';');
-  if (Semi != std::string::npos)
+  if (Semi != std::string::npos) {
+    Comment = Rest.substr(Semi + 1);
     Rest = Rest.substr(0, Semi);
+  }
 
   // Tokenise on whitespace (space and tab).
   std::vector<std::string> Tokens;
@@ -284,6 +357,11 @@ bool AdressResolverPass::parseInstructionLine(const std::string &Line,
   Out.MachineCode = std::move(MachineCode);
   Out.AssemblerCode = Asm;
   HasAsm = !Asm.empty();
+
+  // The first asm token is the mnemonic; resolve a static target from the
+  // comment for control-flow instructions.
+  StringRef Mnemonic = StringRef(Out.AssemblerCode).split(' ').first;
+  resolveTarget(Mnemonic, Comment, Out);
   return true;
 }
 
@@ -299,8 +377,20 @@ void AdressResolverPass::parseFile(StringRef FilePath) {
   bool PendingHeader = false;
   uint64_t PendingAddr = 0;
   std::string PendingName;
+  SectionClass CurClass = SectionClass::Unknown;
+  std::string CurSection;
 
   while (std::getline(In, Line)) {
+    // Section marker, e.g. "Disassembly of section .data:". Switches the
+    // classification used for subsequent symbols.
+    StringRef T = StringRef(Line).trim();
+    if (T.consume_front("Disassembly of section ") && T.ends_with(":")) {
+      CurSection = T.drop_back(1).str(); // strip trailing ':'
+      CurClass = classifySection(CurSection);
+      PendingHeader = false;
+      continue;
+    }
+
     // Resolve a pending header: the first non-empty line after a "<NAME>:"
     // header tells us whether NAME is a real function ("NAME():") or just an
     // internal label (a source path or an instruction).
@@ -308,7 +398,11 @@ void AdressResolverPass::parseFile(StringRef FilePath) {
       StringRef Trimmed = StringRef(Line).trim();
       if (Trimmed.empty())
         continue; // keep the header pending across blank lines
-      if (Trimmed.ends_with("():"))
+      // Only record real functions, and only in code sections, so data symbols
+      // that happen to print a "NAME():" line (e.g. __heap_start__) are not
+      // mistaken for functions.
+      if (Trimmed.ends_with("():") && CurClass != SectionClass::Data &&
+          CurClass != SectionClass::Ignore)
         FunctionEntryAddr[PendingName] = PendingAddr;
       PendingHeader = false;
       // Fall through: this line is never itself an instruction line.
@@ -317,6 +411,17 @@ void AdressResolverPass::parseFile(StringRef FilePath) {
     uint64_t HdrAddr = 0;
     std::string HdrName;
     if (parseHeaderLine(Line, HdrAddr, HdrName)) {
+      AllSymbolAddrs.push_back(HdrAddr);
+      if (CurClass == SectionClass::Data) {
+        // Data/heap object: record it directly (size is derived once the whole
+        // file is parsed); no function "():" check needed.
+        TimingAnalysisResults::DataObject Obj;
+        Obj.Name = HdrName;
+        Obj.Address = HdrAddr;
+        Obj.Section = CurSection;
+        DataObjects.push_back(std::move(Obj));
+        continue;
+      }
       PendingHeader = true;
       PendingAddr = HdrAddr;
       PendingName = HdrName;
@@ -503,9 +608,16 @@ void AdressResolverPass::alignFunction(
       }
 
       TAR.setInstructionAddress(&MI, Range[DumpIdx]->Address);
-      if (V)
-        outs() << "[addr-resolver]   0x" << Twine::utohexstr(Range[DumpIdx]->Address)
-               << "  " << Range[DumpIdx]->AssemblerCode << "\n";
+      if (Range[DumpIdx]->HasTarget)
+        TAR.setBranchTarget(&MI, Range[DumpIdx]->TargetAddress);
+      if (V) {
+        outs() << "[addr-resolver]   0x"
+               << Twine::utohexstr(Range[DumpIdx]->Address) << "  "
+               << Range[DumpIdx]->AssemblerCode;
+        if (Range[DumpIdx]->HasTarget)
+          outs() << " -> 0x" << Twine::utohexstr(Range[DumpIdx]->TargetAddress);
+        outs() << "\n";
+      }
       ++DumpIdx;
     }
   }

@@ -2,9 +2,12 @@
 #define TIMING_ANALYSIS_RESULTS_H
 
 #include "RTTargets/ProgramGraph.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include <cstdint>
+#include <string>
 #include <unordered_map>
+#include <vector>
 namespace llvm {
 
 class MachineInstr;
@@ -46,6 +49,32 @@ public:
   void setInstructionAddress(const MachineInstr *MI, uint64_t Address);
   bool hasInstructionAddress(const MachineInstr *MI) const;
   uint64_t getInstructionAddress(const MachineInstr *MI) const;
+
+  // Static branch/call target of each control-flow MachineInstr, recovered from
+  // the dump's trailing comment (";abs 0x...." for jumps, ";#0x...." for calls)
+  // by AdressResolverPass. Indirect transfers have no entry.
+  std::unordered_map<const MachineInstr *, uint64_t> BranchTargetMap;
+  bool BranchTargetMapSet = false;
+
+  void setBranchTarget(const MachineInstr *MI, uint64_t Target);
+  bool hasBranchTarget(const MachineInstr *MI) const;
+  uint64_t getBranchTarget(const MachineInstr *MI) const;
+
+  // Data/heap objects discovered in the dump's data sections (.data, .bss,
+  // .rodata, .heap, ...) by AdressResolverPass. Foundation only; no timing pass
+  // consumes them yet.
+  struct DataObject {
+    std::string Name;
+    uint64_t Address = 0;
+    uint64_t Size = 0; ///< next symbol addr - this addr (0 if last/unknown)
+    std::string Section;
+  };
+  std::vector<DataObject> DataObjects;
+  std::unordered_map<std::string, size_t> DataObjectByName; ///< name -> index
+
+  void addDataObject(DataObject Obj);
+  const DataObject *getDataObject(StringRef Name) const; ///< nullptr if absent
+  const std::vector<DataObject> &getDataObjects() const;
 
   // Start address of the MSP430 FRAM region, if the user supplied -fram-start.
   // Stored as a foundation only; no timing pass consumes it yet.
