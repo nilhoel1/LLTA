@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 #
-# build_all.sh — build (and optionally analyze) every Maelardalen benchmark.
+# build-suite.sh — build (and optionally analyze) every Maelardalen benchmark.
+#
+# NOTE: the name deliberately avoids a `build_` prefix so it is not swept up by
+# the `rm -rf build_*` cleanup glob that clears the per-benchmark build_<name>/
+# directories.
 #
 # Drives the modular Makefile once per source in ../srcMaelardalen, producing a
 # .opt.ll and a .dump for each. With "analyze" it also runs the full LLTA WCET
 # analysis (loop bounds via the Clang LoopBoundPlugin + dump-file resolution).
 #
 # Usage:
-#   ./build_all.sh            # build .ll + .dump for every benchmark
-#   ./build_all.sh analyze    # also run WCET analysis
+#   ./build-suite.sh            # build .ll + .dump for every benchmark
+#   ./build-suite.sh analyze    # also run WCET analysis
 #
 # Per-benchmark output is captured in build_<name>/build.log. One benchmark
 # failing never aborts the run; the script always exits 0 (it is a generator /

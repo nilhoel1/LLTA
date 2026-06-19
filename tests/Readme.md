@@ -21,8 +21,8 @@ Build the whole suite at once (never aborts on one failure; prints a
 `BUILD`/`BOUNDS`/`ANALYZE` table):
 
 ```bash
-bash tests/msp430/build_all.sh            # .ll + .dump for every benchmark
-bash tests/msp430/build_all.sh analyze    # + WCET analysis
+bash tests/msp430/build-suite.sh            # .ll + .dump for every benchmark
+bash tests/msp430/build-suite.sh analyze    # + WCET analysis
 ```
 
 Per-benchmark artifacts go to `tests/msp430/build_<name>/` and are git-ignored
@@ -45,5 +45,5 @@ python3 tests/regression_test.py     # GREEN = all outcomes match
 
 **GREEN** matches; **YELLOW** WCET drifted or a non-producing benchmark now
 yields one (refresh the baseline); **RED** a benchmark lost its WCET (regression,
-exit 1). To re-baseline, run `build_all.sh analyze` and update the affected
+exit 1). To re-baseline, run `build-suite.sh analyze` and update the affected
 entries in `regression_baselines.json`.
