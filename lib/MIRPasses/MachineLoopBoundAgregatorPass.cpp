@@ -9,6 +9,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
 #include <unordered_map>
@@ -18,6 +19,7 @@
 namespace llvm {
 
 // Helper structure to store loop bound data from JSON
+namespace {
 struct JSONLoopBound {
   std::string FileName;
   unsigned Line;
@@ -25,6 +27,7 @@ struct JSONLoopBound {
   unsigned LowerBound;
   unsigned UpperBound;
 };
+} // namespace
 
 // Helper function to load loop bounds from JSON file
 static std::vector<JSONLoopBound>
@@ -115,7 +118,10 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
   // Create a lookup map by location (filename:line) - ignore column as it may
   // vary
   for (const auto &Bound : JSONBounds) {
-    std::string Key = Bound.FileName + ":" + std::to_string(Bound.Line);
+    // Key by basename so it matches the basename-based lookup below: the JSON
+    // "file" field holds a full source path while DebugLoc filenames may not.
+    StringRef Base = sys::path::filename(Bound.FileName);
+    std::string Key = (Base + ":" + std::to_string(Bound.Line)).str();
     // Use the upper bound as the trip count
     JSONBoundsByLocation[Key] = Bound.UpperBound;
     if (DebugPrints)
@@ -184,35 +190,40 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
       }
     }
 
-    // If SCEV failed, try to use JSON bounds
+    // If SCEV failed, try to use JSON bounds. The clang plugin records each
+    // bound at the loop *statement* line (e.g. the `while` keyword via
+    // getBeginLoc), so match on the loop's start location -- not the header's
+    // first body instruction, which sits one line into the loop after rotation.
     if (TripCount == 0 && !JSONBounds.empty()) {
-      // Get the debug location of the loop header
-      for (const Instruction &I : *BB) {
-        if (!isa<PHINode>(I)) {
-          if (const DebugLoc &DL = I.getDebugLoc()) {
-            std::string FileName = DL->getFilename().str();
-            unsigned Line = DL->getLine();
+      // Build the basename:line key (same normalization as the JSON map above),
+      // look it up, and record the trip count on a hit. Returns true on a hit.
+      auto TryJSONLookup = [&](const DebugLoc &DL) -> bool {
+        if (!DL)
+          return false;
+        StringRef Base = sys::path::filename(DL->getFilename());
+        std::string Key = (Base + ":" + std::to_string(DL->getLine())).str();
+        auto It = JSONBoundsByLocation.find(Key);
+        if (It != JSONBoundsByLocation.end()) {
+          TripCount = It->second;
+          if (DebugPrints)
+            outs() << "    - Got trip count from JSON: " << TripCount
+                   << " (location: " << Key << ")\n";
+          return true;
+        }
+        if (DebugPrints)
+          outs() << "    - No JSON bound found for location: " << Key << "\n";
+        return false;
+      };
 
-            // Extract just the filename without path
-            size_t LastSlash = FileName.find_last_of("/\\");
-            if (LastSlash != std::string::npos) {
-              FileName = FileName.substr(LastSlash + 1);
-            }
-
-            std::string Key = FileName + ":" + std::to_string(Line);
-            auto It = JSONBoundsByLocation.find(Key);
-            if (It != JSONBoundsByLocation.end()) {
-              TripCount = It->second;
-              if (DebugPrints)
-                outs() << "    - Got trip count from JSON: " << TripCount
-                       << " (location: " << Key << ")\n";
-            } else {
-              if (DebugPrints)
-                outs() << "    - No JSON bound found for location: " << Key
-                       << "\n";
-            }
+      // Primary: the loop's start location (from !llvm.loop metadata) lines up
+      // with the plugin's recorded line. Fall back to the header's first non-PHI
+      // instruction for loops lacking loop-start debug info.
+      if (!TryJSONLookup(L->getStartLoc())) {
+        for (const Instruction &I : *BB) {
+          if (!isa<PHINode>(I)) {
+            TryJSONLookup(I.getDebugLoc());
+            break; // Only check the first non-PHI instruction
           }
-          break; // Only check the first non-PHI instruction
         }
       }
     }
