@@ -71,9 +71,9 @@ $(BUILD_DIR)/$(TEST).S: $(BUILD_DIR)/$(TEST).opt.ll
 	@$(IR_TOOLCHAIN)/llta -llc $(LLCFLAGS) $< -o $@
 	@echo "FIXUP    $@"
 	@sed 's/call[ 	]*#/call /g' $@ > $@.tmp && mv $@.tmp $@
-	@grep -v '^[ 	]*\.cfi' $@ > $@.tmp && mv $@.tmp $@
-	@grep -v '^[ 	]*\.file' $@ > $@.tmp && mv $@.tmp $@
-	@grep -v '^[ 	]*\.loc' $@ > $@.tmp && mv $@.tmp $@
+	@grep -a -v '^[ 	]*\.cfi' $@ > $@.tmp && mv $@.tmp $@
+	@grep -a -v '^[ 	]*\.file' $@ > $@.tmp && mv $@.tmp $@
+	@grep -a -v '^[ 	]*\.loc' $@ > $@.tmp && mv $@.tmp $@
 
 # 4. Assemble to Object (using GCC)
 $(BUILD_DIR)/$(TEST).o: $(BUILD_DIR)/$(TEST).S

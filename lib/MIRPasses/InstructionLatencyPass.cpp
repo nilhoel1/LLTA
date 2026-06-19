@@ -48,6 +48,9 @@ bool InstructionLatencyPass::runOnMachineFunction(MachineFunction &F) {
     // Sum up the latencies of all instructions in the basic block
     unsigned int Latency = 0;
     for (auto &MI : MBB) {
+      // Meta instructions (DBG_*, CFI, KILL, IMPLICIT_DEF, ...) carry no timing.
+      if (MI.isMetaInstruction())
+        continue;
       unsigned int InstructionLatency = Target.getInstructionLatency(MI);
       if (DebugPrints)
         outs() << "Instruction: " << MI << "Latency: " << InstructionLatency

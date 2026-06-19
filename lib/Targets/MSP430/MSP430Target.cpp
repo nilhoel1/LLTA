@@ -77,6 +77,7 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::RRC16r:
   case MSP430::RRC8r:
   case MSP430::SWPB16r:
+  case MSP430::SEXT16r:
   case MSP430::ZEXT16r:
     return 1;
 

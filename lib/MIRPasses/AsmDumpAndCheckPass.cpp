@@ -39,8 +39,13 @@ bool AsmDumpAndCheckPass::doFinalization(Module &M) { return false; }
 bool AsmDumpAndCheckPass::runOnMachineFunction(MachineFunction &F) {
   const llta::RTTarget &Target = TAR.getTarget();
   for (auto &MBB : F)
-    for (auto &MI : MBB)
+    for (auto &MI : MBB) {
+      // Meta instructions (DBG_*, CFI, KILL, IMPLICIT_DEF, ...) carry no timing
+      // and are not part of any target's instruction model.
+      if (MI.isMetaInstruction())
+        continue;
       Target.checkInstruction(MI);
+    }
   return false;
 }
 
