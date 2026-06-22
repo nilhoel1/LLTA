@@ -89,3 +89,12 @@ float sqrtfcn(float val)
    return (x);
 }
 
+/* The original SNU-RT source ships only sqrtfcn(); add a self-contained main so
+ * the freestanding MSP430 link resolves (the crt references `main`). */
+int main(void)
+{
+   volatile float result;
+   result = sqrtfcn(5.0);
+   return 0;
+}
+

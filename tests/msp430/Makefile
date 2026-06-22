@@ -83,7 +83,9 @@ $(BUILD_DIR)/$(TEST).o: $(BUILD_DIR)/$(TEST).S
 # 6. Link to ELF
 $(BUILD_DIR)/$(TEST).elf: $(BUILD_DIR)/$(TEST).o
 	@echo "LINK     $< -> $@"
-	@$(CROSS_COMPILER)-gcc $(LDFLAGS) -o $@ $<
+	@# -lm must follow the object: ld resolves left-to-right, so a library
+	@# placed before the object that needs it (e.g. whet's sin/cos) is skipped.
+	@$(CROSS_COMPILER)-gcc $(LDFLAGS) -o $@ $< -lm
 
 # 7. Object Dump
 $(BUILD_DIR)/$(TEST).dump: $(BUILD_DIR)/$(TEST).elf

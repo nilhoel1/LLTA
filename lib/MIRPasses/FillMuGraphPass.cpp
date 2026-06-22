@@ -1,5 +1,6 @@
 #include "MIRPasses/FillMuGraphPass.h"
 #include "Graph/ProgramGraph.h"
+#include "MIRPasses/StartFunction.h"
 #include "Utility/Options.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -16,29 +17,7 @@ FillMuGraphPass::FillMuGraphPass(TimingAnalysisResults &TAR)
     : MachineFunctionPass(ID), TAR(TAR) {}
 
 Function *FillMuGraphPass::getStartingFunction(CallGraph &CG) {
-  Function *StartingFunction = nullptr;
-  unsigned int CurrentNumReferences = UINT_MAX;
-  bool SeenNumRefsTwice = false;
-
-  for (auto &CGNode : CG) {
-    auto *F = CGNode.second->getFunction();
-    if (F == nullptr)
-      continue;
-    if (!StartFunctionName.empty() &&
-        F->getName().compare(StartFunctionName) == 0) {
-      return F;
-    }
-    auto NumRef = CGNode.second->getNumReferences();
-    if (NumRef < CurrentNumReferences) {
-      StartingFunction = F;
-      CurrentNumReferences = NumRef;
-    } else if (NumRef == CurrentNumReferences) {
-      SeenNumRefsTwice = true;
-    }
-  }
-  if (SeenNumRefsTwice && StartFunctionName.empty())
-    return nullptr;
-  return StartingFunction;
+  return findStartFunction(CG);
 }
 
 void FillMuGraphPass::getAnalysisUsage(AnalysisUsage &AU) const {

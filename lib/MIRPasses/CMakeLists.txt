@@ -8,6 +8,7 @@ add_llvm_library(lltaMPasses
   PathAnalysisPass.cpp
   MachineLoopBoundAgregatorPass.cpp
   FillMuGraphPass.cpp
+  StartFunction.cpp
   CallSplitterPass.cpp
   WCETAnalysisPipeline.cpp
 

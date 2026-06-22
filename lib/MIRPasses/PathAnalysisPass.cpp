@@ -3,6 +3,7 @@
 #include "ILP/AbstractHighsSolver.h"
 #include "ILP/AbstractILPSolver.h"
 #include "ILP/ILPSolver.h"
+#include "MIRPasses/StartFunction.h"
 #include "Targets/RTTarget.h"
 #include "TimingAnalysisResults.h"
 #include "Utility/Options.h"
@@ -35,31 +36,7 @@ PathAnalysisPass::PathAnalysisPass(TimingAnalysisResults &TAR)
       AnalysisWorker(TAR.getTarget().getPipeline(), ASG) {}
 
 Function *PathAnalysisPass::getStartingFunction(CallGraph &CG) {
-  // We assume that the Function with the minimal number of References might be
-  // the starting Function, e.g. main. If multiple Functions have the same
-  // number of references, we can not be sure and return nullptr.
-  Function *StartingFunction = nullptr;
-  unsigned int CurrentNumReferences = UINT_MAX;
-  bool SeenNumRefsTwice = false;
-
-  for (auto &CGNode : CG) {
-    auto *F = CGNode.second->getFunction();
-    if (F == nullptr)
-      continue;
-    if (!StartFunctionName.empty() &&
-        F->getName().compare(StartFunctionName) == 0) {
-      return F;
-    }
-    auto NumRef = CGNode.second->getNumReferences();
-    if (NumRef < CurrentNumReferences) {
-      StartingFunction = F;
-      CurrentNumReferences = NumRef;
-    } else if (NumRef == CurrentNumReferences) {
-      SeenNumRefsTwice = true;
-    }
-  }
-  if (SeenNumRefsTwice && StartFunctionName.empty())
-    return nullptr;
+  Function *StartingFunction = findStartFunction(CG);
   if (DebugPrints && StartingFunction)
     outs() << "StartingFunction: " << StartingFunction->getName() << "\n";
   return StartingFunction;
@@ -110,8 +87,8 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 #endif
   }
 
-  if (!Solver &&
-      (SolverType == ILPSolverType::HiGHS || SolverType == ILPSolverType::Auto)) {
+  if (!Solver && (SolverType == ILPSolverType::HiGHS ||
+                  SolverType == ILPSolverType::Auto)) {
 #ifdef ENABLE_HIGHS
     Solver = std::make_unique<AbstractHighsSolver>();
     SolverName = "HiGHS";

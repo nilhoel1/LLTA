@@ -178,22 +178,29 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
     if (DebugPrints)
       outs() << "    - SmallConstantTripCount: " << TripCount << "\n";
 
+    // SCEV's constant max-backedge-taken count is only a *pessimistic*
+    // over-approximation: for a loop SCEV cannot bound, it returns the index
+    // type's maximum (e.g. 32766 on a 16-bit target). Compute it here but do
+    // NOT let it shadow a tight JSON pragma bound -- it is applied only as a
+    // last resort, after the JSON lookup below.
+    unsigned MaxBTCTripCount = 0;
     if (TripCount == 0) {
-      // Try to get max backedge taken count
       const SCEV *MaxBTC = SE.getConstantMaxBackedgeTakenCount(L);
       if (DebugPrints)
         outs() << "    - Trying max backedge taken count: " << *MaxBTC << "\n";
       if (auto *C = dyn_cast<SCEVConstant>(MaxBTC)) {
-        TripCount = C->getAPInt().getZExtValue() + 1; // Trip count is BTC + 1
+        MaxBTCTripCount = C->getAPInt().getZExtValue() + 1; // BTC + 1
         if (DebugPrints)
-          outs() << "    - Got trip count from max BTC: " << TripCount << "\n";
+          outs() << "    - Max BTC trip count (fallback): " << MaxBTCTripCount
+                 << "\n";
       }
     }
 
-    // If SCEV failed, try to use JSON bounds. The clang plugin records each
-    // bound at the loop *statement* line (e.g. the `while` keyword via
-    // getBeginLoc), so match on the loop's start location -- not the header's
-    // first body instruction, which sits one line into the loop after rotation.
+    // Prefer the JSON pragma bound over the loose max-BTC estimate. The clang
+    // plugin records each bound at the loop *statement* line (e.g. the `while`
+    // keyword via getBeginLoc), so match on the loop's start location -- not the
+    // header's first body instruction, which sits one line into the loop after
+    // rotation.
     if (TripCount == 0 && !JSONBounds.empty()) {
       // Build the basename:line key (same normalization as the JSON map above),
       // look it up, and record the trip count on a hit. Returns true on a hit.
@@ -216,8 +223,8 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
       };
 
       // Primary: the loop's start location (from !llvm.loop metadata) lines up
-      // with the plugin's recorded line. Fall back to the header's first non-PHI
-      // instruction for loops lacking loop-start debug info.
+      // with the plugin's recorded line. Fall back to the header's first
+      // non-PHI instruction for loops lacking loop-start debug info.
       if (!TryJSONLookup(L->getStartLoc())) {
         for (const Instruction &I : *BB) {
           if (!isa<PHINode>(I)) {
@@ -227,6 +234,16 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
         }
       }
     }
+
+    // Last resort: fall back to the pessimistic SCEV max-BTC bound only when
+    // neither an exact SCEV trip count nor a JSON bound was available.
+    if (TripCount == 0 && MaxBTCTripCount > 0) {
+      TripCount = MaxBTCTripCount;
+      if (DebugPrints)
+        outs() << "    - Using max-BTC fallback trip count: " << TripCount
+               << "\n";
+    }
+
     if (TripCount > 0) {
       LoopBounds[Header] = TripCount;
       LLVM_DEBUG(dbgs() << "Loop bound for MBB " << Header->getNumber()
