@@ -70,7 +70,11 @@ public:
   /// *body* cost only — the `call` instruction itself is costed at the call
   /// site. Returns nullopt if the target has no cost for that callee, in which
   /// case the call is left uncosted and the WCET is reported as unsound.
-  /// Default: none (no library-call costing).
+  ///
+  /// Default: none. No MSP430 target implements this: the routines are MSP430X
+  /// code LLVM cannot decode, their soft-float tree has a statically
+  /// unresolvable indirect call, and conservative bounds are uselessly loose.
+  /// See docs/LibraryCallCosting.md; the seam is kept for tractable cases.
   virtual std::optional<unsigned>
   getExternalCallCost(llvm::StringRef CalleeName) const {
     return std::nullopt;

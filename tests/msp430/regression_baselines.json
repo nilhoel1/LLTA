@@ -46,6 +46,6 @@
     "sqrt":          { "expected": 3464, "note": "Added a self-contained main(); the kernel implements its own fabs/sqrtfcn (no external libm), so the WCET is sound." },
     "statemate":     { "expected": 3230, "note": "Was non-deterministic on a start-function ref-count tie; tie now broken (starts from main) -> deterministic. Self-contained, all 302 graph nodes reachable." },
     "ud":            { "expected": null, "status": "build-fail",   "note": "RAM overflow: long a[50][50] (~10KB) overflows FR5994 RAM." },
-    "whet":          { "expected": null, "status": "unsound",      "note": "Links now (libm link-order fix: -lm after the object). Produces 30161778 but EXCLUDES the external libm bodies (sin/cos/atan/log/exp/sqrt) -- they are calls into code absent from the analyzed IR -> under-approximation. Left null (shows YELLOW) until library calls are costed." }
+    "whet":          { "expected": 30161778, "status": "unsound",   "note": "Deterministically produces 30161778, now emitted with an explicit *** UNSOUND *** block listing the body-less calls it under-counts (libm sin/cos/atan/log/exp/sqrt and the __mspabi_* soft-float routines, whose bodies are absent from the analyzed IR). Pinned as the contract for that marked under-approximation; costing those routines is impractical (MSP430X code LLVM can't decode + a statically unresolvable indirect call in the soft-float tree -- see docs/LibraryCallCosting.md), so the honest UNSOUND mark stands." }
   }
 }

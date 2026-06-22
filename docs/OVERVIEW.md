@@ -48,4 +48,6 @@ python3 tests/regression_test.py   # WCET regression on the MSP430 benchmarks
 
 See [DESIGN_GUIDELINES.md](DESIGN_GUIDELINES.md) for conventions, testing, and
 how to add a target. The assumptions the design makes about every target are in
-[TargetAssumptions.md](TargetAssumptions.md).
+[TargetAssumptions.md](TargetAssumptions.md). Why a call into a body-less library
+routine (libm, `__mspabi_*`) yields an **UNSOUND**-marked WCET rather than a
+costed one is covered in [LibraryCallCosting.md](LibraryCallCosting.md).
