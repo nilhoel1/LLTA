@@ -46,7 +46,7 @@ BUILD_DIR = build_$(TEST)
 # Targets
 .PHONY: all clean download analyze
 
-all: $(BUILD_DIR)/$(TEST).dump
+all: $(BUILD_DIR)/$(TEST).elf
 
 # Full WCET analysis target
 analyze: $(BUILD_DIR)/$(TEST).wcet
@@ -87,7 +87,8 @@ $(BUILD_DIR)/$(TEST).elf: $(BUILD_DIR)/$(TEST).o
 	@# placed before the object that needs it (e.g. whet's sin/cos) is skipped.
 	@$(CROSS_COMPILER)-gcc $(LDFLAGS) -o $@ $< -lm
 
-# 7. Object Dump
+# 7. Object Dump (human inspection only; the analyzer reads the ELF directly via
+# -elf-file, so this is no longer required for `analyze`).
 $(BUILD_DIR)/$(TEST).dump: $(BUILD_DIR)/$(TEST).elf
 	@echo "DUMP     $< -> $@"
 	@$(CROSS_COMPILER)-objdump -D $< > $@
@@ -115,11 +116,11 @@ $(BUILD_DIR)/$(TEST).loop_bounds.json: $(SOURCE) | $(BUILD_DIR)
 		echo '{"loop_bounds":[]}' > $@; \
 	fi
 
-# 9. LLTA WCET Analysis (full analysis with loop bounds and dump file)
-$(BUILD_DIR)/$(TEST).wcet: $(BUILD_DIR)/$(TEST).opt.ll $(BUILD_DIR)/$(TEST).dump $(BUILD_DIR)/$(TEST).loop_bounds.json
+# 9. LLTA WCET Analysis (full analysis with loop bounds, driven from the ELF)
+$(BUILD_DIR)/$(TEST).wcet: $(BUILD_DIR)/$(TEST).opt.ll $(BUILD_DIR)/$(TEST).elf $(BUILD_DIR)/$(TEST).loop_bounds.json
 	@echo "LLTA-WCET $< -> $@"
 	@cd $(BUILD_DIR) && \
 		$(abspath $(IR_TOOLCHAIN))/llta \
 		-loop-bounds-json=$(abspath $(BUILD_DIR)/$(TEST).loop_bounds.json) \
-		-dump-file=$(abspath $(BUILD_DIR)/$(TEST).dump) \
+		-elf-file=$(abspath $(BUILD_DIR)/$(TEST).elf) \
 		$(LLCFLAGS) $(abspath $<) -o /dev/null 2>&1 | tee $(abspath $@)

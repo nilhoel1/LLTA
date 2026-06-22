@@ -72,7 +72,7 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
   }
 
   if (IsLast) {
-    TAR.MASG.finalize(F, MMI);
+    TAR.MASG.finalize(F, MMI, &TAR.getTarget());
   }
 
   return false;

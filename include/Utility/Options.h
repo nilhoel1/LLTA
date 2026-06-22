@@ -4,9 +4,12 @@
 #include "llvm/Support/CommandLine.h"
 
 /**
- * Path to the dump file for Adress Resolving
+ * Path to the linked ELF executable for address resolution (replaces the former
+ * -dump-file). Drives address resolution and library-call (ABI) cost decoding
+ * via llvm::object::ObjectFile + MCDisassembler. Optional: when empty, the
+ * analysis runs but its result is reported as UNSOUND.
  */
-extern llvm::cl::opt<std::string> DumpFilename;
+extern llvm::cl::opt<std::string> ElfFilename;
 
 extern llvm::cl::opt<std::string> StartFunctionName;
 

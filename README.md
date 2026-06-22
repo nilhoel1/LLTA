@@ -49,9 +49,15 @@ Common options:
 
 - `-march=<arch>` — target architecture (e.g. `msp430`).
 - `-start-function=<name>` — analysis entry point (default `main`).
-- `-dump-file=<path>` — objdump disassembly (`objdump -Dl`) of the linked ELF;
-  used by `AdressResolverPass` to recover real instruction addresses, static
-  jump/call targets, and data objects.
+- `-elf-file=<path>` — the **linked ELF executable**. `AdressResolverPass` opens
+  it with `llvm::object::ObjectFile` and disassembles its code sections with an
+  `MCDisassembler` to recover real instruction addresses and data objects, and
+  to cost library-call (ABI) routines whose bodies are absent from the IR.
+  **Optional but recommended:** with no `-elf-file`, the analysis still runs
+  (MIR-only) but its WCET is reported as **UNSOUND** — without the linked binary
+  there is no memory model and no library-call costing, so the result is an
+  under-approximation. (Replaces the former `-dump-file`; the analyzer no longer
+  parses objdump text.)
 - `-ilp-solver=<auto|gurobi|highs>` — abstract ILP backend (`auto` prefers
   Gurobi if licensed, else HiGHS).
 - `-loop-bounds-json=<path>` — loop bounds from the clang plugin.

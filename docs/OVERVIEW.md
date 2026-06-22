@@ -31,7 +31,7 @@ memory-model passes:
 
 1. **CallSplitterPass** — prepares the CFG (splits calls). *(In `-llc` mode, the pipeline stops here.)*
 2. **AsmDumpAndCheckPass** — validates each instruction against the target's model (`RTTarget::checkInstruction`).
-3. **AdressResolverPass** — aligns objdump disassembly with MIR; resolves instruction addresses and branch targets (`RTTarget::isControlFlowMnemonic` / `resolveBranchTarget`).
+3. **AdressResolverPass** — disassembles the linked ELF (`-elf-file`, via `llvm::object::ObjectFile` + `MCDisassembler`) and aligns it with the MIR to resolve real instruction addresses and data objects. With no `-elf-file` it is skipped and the WCET is flagged UNSOUND (no memory model / library-call costs).
 4. **InstructionLatencyPass** — base per-instruction latencies (`RTTarget::getInstructionLatency`) → `MBBLatencyMap`.
 5. **\<target memory-model passes\>** — `RTTarget::getMemoryModelPasses` (e.g. MSP430FR's FRAM wait-state + read-cache passes). No-ops unless configured.
 6. **MachineLoopBoundAgregatorPass** — loop bounds (SCEV / clang-plugin JSON).

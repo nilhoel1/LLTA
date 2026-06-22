@@ -33,11 +33,15 @@ live with each target, e.g. `lib/Targets/ESP32-C6/ESP32-C6-Assumptions.md`.)
 
 ## Disassembly / address resolution
 
-- A linked **objdump-style disassembly** can be aligned with the MIR to recover
-  each instruction's real address and static branch/call targets. The target
-  knows its control-flow mnemonics (`isControlFlowMnemonic`) and how its
-  toolchain prints static targets in trailing comments (`resolveBranchTarget`).
-- Indirect transfers may have no static target; analysis must tolerate that.
+- The **linked ELF** (`-elf-file`) can be disassembled with an `MCDisassembler`
+  and aligned with the MIR to recover each instruction's real address. The same
+  decoded code is the basis for costing library-call (ABI) routines whose bodies
+  are not in the analyzed IR.
+- Address resolution is **optional**: with no ELF the analysis runs MIR-only and
+  the result is reported as UNSOUND (no memory model, no library-call costs).
+  The `RTTarget` control-flow-mnemonic / branch-target hooks
+  (`isControlFlowMnemonic`, `resolveBranchTarget`) remain for text-based callers
+  but are no longer needed for ELF-driven resolution.
 
 ## Memory model (optional, target-contributed)
 

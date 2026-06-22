@@ -39,20 +39,20 @@ public:
     return "Adress Resolver Pass";
   }
 
-  /// A single instruction decoded from the objdump dump file. Continuation
-  /// lines (extension words printed on their own line) are merged into the
-  /// instruction they belong to.
+  /// A single instruction decoded from the linked ELF's code sections by the
+  /// MCDisassembler. The disassembler reports the full instruction length, so
+  /// extension words are already part of Bytes (no continuation merging
+  /// needed).
   struct DumpInstruction {
     uint64_t Address = 0;
     std::vector<uint8_t> Bytes;
-    std::string MachineCode;   ///< original hex text, for diagnostics
-    std::string AssemblerCode; ///< mnemonic + operands, for diagnostics
+    std::string MachineCode;    ///< hex of Bytes, for diagnostics
+    std::string AssemblerCode;  ///< mnemonic + operands, for diagnostics
     uint64_t TargetAddress = 0; ///< static branch/call target, if any
     bool HasTarget = false;
   };
 
-  /// Classification of an objdump section, to decide how its symbols are
-  /// treated during parsing.
+  /// Classification of an ELF section, to decide how its symbols are treated.
   enum class SectionClass { Code, Data, Ignore, Unknown };
 
 private:
@@ -84,20 +84,21 @@ private:
   std::unique_ptr<MCCodeEmitter> CodeEmitter;
   const MCSubtargetInfo *STI = nullptr;
 
-  // --- dump parsing ---
-  void parseFile(StringRef FilePath);
-  bool parseHeaderLine(const std::string &Line, uint64_t &Addr,
-                       std::string &Name);
-  bool parseInstructionLine(const std::string &Line, DumpInstruction &Out,
-                            bool &HasAsm);
-  static bool isHexStr(StringRef S);
+  // --- ELF parsing (preferred; drives address resolution + ABI costing) ---
+  /// Decode the linked ELF (Utility/Options ElfFilename) into DumpInstructions,
+  /// FunctionEntryAddr and DataObjects, using llvm::object::ObjectFile +
+  /// MCDisassembler. Needs a MachineFunction for the active subtarget. Runs
+  /// once (guarded by Parsed). A no-op (leaving the maps empty) if no ELF is
+  /// supplied.
+  void parseElf(const MachineFunction &F);
+  /// True once parsing has been attempted (ELF or legacy dump).
+  bool Parsed = false;
+  /// Post-process parsed symbols: sort unique entry addresses and derive each
+  /// data object's size.
+  void finishParse();
+
   /// Classify a section name (e.g. ".data") as code, data, or ignorable.
   static SectionClass classifySection(StringRef Name);
-
-  /// Active timing-analysis target, resolved from the module triple in
-  /// doInitialization. Provides the (target-specific) control-flow mnemonic set
-  /// and objdump-comment branch-target parsing used while parsing the dump.
-  const llta::RTTarget *Target = nullptr;
 
   // --- encoding cross-check ---
   void setupEncoder(MachineFunction &F);
@@ -113,20 +114,23 @@ private:
 
   // --- alignment ---
   void alignFunction(MachineFunction &F,
-                     std::vector<const DumpInstruction *> &Range, bool Diagnose);
+                     std::vector<const DumpInstruction *> &Range,
+                     bool Diagnose);
 
-  // --- coverage statistics (verify-only; printed under -address-resolver-verbose) ---
-  // Accumulated only over the functions LLTA actually analyses, so the numbers
-  // reflect what the timing analysis depends on, not the whole linked ELF.
+  // --- coverage statistics (verify-only; printed under
+  // -address-resolver-verbose) --- Accumulated only over the functions LLTA
+  // actually analyses, so the numbers reflect what the timing analysis depends
+  // on, not the whole linked ELF.
   struct Coverage {
-    unsigned Functions = 0;            ///< analysed functions with a dump entry
-    unsigned FunctionsNoDumpEntry = 0; ///< analysed functions missing a dump entry
-    uint64_t CodeMIs = 0;              ///< code-emitting MIs seen
-    uint64_t ResolvedMIs = 0;          ///< MIs that received an address
-    uint64_t BranchTargets = 0;        ///< control-flow MIs that received a target
-    unsigned ResyncEvents = 0;         ///< forward re-syncs (likely inline asm)
-    unsigned MismatchEvents = 0;       ///< byte mismatches with no re-sync found
-    unsigned LeftoverEvents = 0;       ///< functions with dump entries left over
+    unsigned Functions = 0; ///< analysed functions with a dump entry
+    unsigned FunctionsNoDumpEntry =
+        0;                       ///< analysed functions missing a dump entry
+    uint64_t CodeMIs = 0;        ///< code-emitting MIs seen
+    uint64_t ResolvedMIs = 0;    ///< MIs that received an address
+    uint64_t BranchTargets = 0;  ///< control-flow MIs that received a target
+    unsigned ResyncEvents = 0;   ///< forward re-syncs (likely inline asm)
+    unsigned MismatchEvents = 0; ///< byte mismatches with no re-sync found
+    unsigned LeftoverEvents = 0; ///< functions with dump entries left over
   } Cov;
 };
 } // namespace llvm

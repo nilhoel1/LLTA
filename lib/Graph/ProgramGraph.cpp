@@ -1,4 +1,5 @@
 #include "Graph/ProgramGraph.h"
+#include "Targets/RTTarget.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -383,6 +384,14 @@ bool ProgramGraph::fillGraphWithFunction(
             unsigned CallNode = MBBToNodeMap[&MBB];
             CallSites.push_back({CallNode, Callee});
           }
+        } else if (MI.getOperand(0).getType() ==
+                   llvm::MachineOperand::MO_ExternalSymbol) {
+          // Backend-synthesized libcall (e.g. __mspabi_* soft-float). No IR
+          // Function exists, so it is captured by symbol name and resolved in
+          // finalize() against the target's external-call cost model.
+          unsigned CallNode = MBBToNodeMap[&MBB];
+          ExternalSymbolCallSites.push_back(
+              {CallNode, std::string(MI.getOperand(0).getSymbolName())});
         }
       }
     }
@@ -408,7 +417,29 @@ void ProgramGraph::fillGraph(
   }
 }
 
-bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
+bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
+                            const llta::RTTarget *Target) {
+  // Body-less external calls (declared-but-undefined IR functions like libm
+  // sin/cos, and backend MO_ExternalSymbol libcalls like __mspabi_*) have no
+  // node in the graph. Charge the target's cost for them if it has one, else
+  // stage the name: reachable un-costed callees make the WCET an
+  // under-approximation and are reported as unsound. Staging is resolved after
+  // pruning so only callees on a reachable path count.
+  std::vector<std::pair<unsigned, std::string>> PendingUnsound;
+  auto chargeOrStage = [&](unsigned CallNode, StringRef Name) {
+    if (Target) {
+      if (std::optional<unsigned> Cost = Target->getExternalCallCost(Name)) {
+        // The callee body cost is added to the call-site node's upper (and
+        // lower) bound; the `call` instruction itself is already costed.
+        MuArchState &St = Nodes.at(CallNode).getState();
+        St.MaxCycles += *Cost;
+        St.MinCycles += *Cost;
+        return;
+      }
+    }
+    PendingUnsound.push_back({CallNode, Name.str()});
+  };
+
   // Process all captured call sites
   for (const auto &[CallNode, Callee] : CallSites) {
     // Never wire calls *into* the start function. It is the analysis boundary:
@@ -431,15 +462,21 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
           addEdge(ReturnNode, CallNode + 1);
         }
       }
-    } else {
-      // Fallback or error handling if callee not found in map
-      // This might happen for external functions or if FillMuGraphPass didn't
-      // run on it
-      if (DebugPrints)
-        outs() << "Warning: Callee " << Callee->getName()
-               << " not found in FunctionToEntryNodeMap\n";
+    } else if (Callee->isDeclaration()) {
+      // Declared-but-undefined function whose body is not in the analyzed IR
+      // (e.g. libm). Cost it via the target model or flag it as unsound.
+      chargeOrStage(CallNode, Callee->getName());
+    } else if (DebugPrints) {
+      // A defined function with no entry node would be a different bug
+      // (FillMuGraphPass did not run on it); leave it as a diagnostic.
+      outs() << "Warning: Callee " << Callee->getName()
+             << " not found in FunctionToEntryNodeMap\n";
     }
   }
+
+  // Backend-synthesized libcalls (no IR Function): cost by symbol name.
+  for (const auto &[CallNode, Name] : ExternalSymbolCallSites)
+    chargeOrStage(CallNode, Name);
   // Prune nodes that are not reachable from the Entry node. Because every
   // MachineFunction in the module is accumulated into this single graph, the
   // functions that are not part of the start function's call subgraph (and
@@ -484,9 +521,15 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI) {
 
     if (Verbose)
       outs() << "Pruned " << ToRemove.size()
-             << " node(s) unreachable from the start function; "
-             << Nodes.size() << " node(s) remain.\n";
+             << " node(s) unreachable from the start function; " << Nodes.size()
+             << " node(s) remain.\n";
   }
+
+  // Keep only un-costed external calls that survived pruning (i.e. lie on a
+  // reachable path); those are the ones that make the reported WCET unsound.
+  for (const auto &[CallNode, Name] : PendingUnsound)
+    if (Nodes.find(CallNode) != Nodes.end())
+      UnsoundExternalCallees.insert(Name);
 
   // outs() << "Printing Dot file \n";
   dump2Dot(StringRef("ProgramGraph.dot"));

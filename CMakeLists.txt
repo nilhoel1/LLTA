@@ -15,6 +15,7 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsAsmParsers
   AllTargetsCodeGens
   AllTargetsDescs
+  AllTargetsDisassemblers
   AllTargetsInfos
   Analysis
   AsmPrinter

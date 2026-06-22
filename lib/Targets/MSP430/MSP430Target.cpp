@@ -4,9 +4,11 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <optional>
 
 using namespace llvm;
 
@@ -22,7 +24,18 @@ unsigned MSP430Target::getInstructionLatency(const MachineInstr &I) const {
   return getMSP430Latency(I);
 }
 
-unsigned getMSP430Latency(const MachineInstr &I) {
+std::optional<unsigned>
+MSP430Target::getInstructionLatency(const MCInst &I) const {
+  return getMSP430Latency(I);
+}
+
+// Core latency table, keyed only on the opcode and whether any operand
+// references PC (the only operand property the table needs). Keeping it free of
+// the MachineInstr/MCInst operand APIs lets it serve both the codegen MIR path
+// and the disassembled-ELF (library-call costing) path. Returns nullopt for an
+// opcode with no latency model; callers decide how to diagnose that.
+static std::optional<unsigned> msp430LatencyForOpcode(unsigned Opcode,
+                                                      bool HasPCOperand) {
   // r = RN, RM
   // m = x(Rn), x(Rm), EDE, &EDE
   // n = @Rn
@@ -30,7 +43,7 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   // c, i = #N
   // if two are used first is destination secnd is source
   // E.g.: ADD16rm -> r = Destination, m = Source
-  switch (I.getOpcode()) {
+  switch (Opcode) {
   // Format-III Instructions
 
   // return from subroutine
@@ -312,12 +325,8 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::MOV16ri:
   case MSP430::MOV8rc:
   case MSP430::MOV8ri:
-  case MSP430::Bi:                                  // Emulated
-    for (const MachineOperand &MO : I.operands()) { // check for PC
-      if (MO.isReg() && MO.getReg() == MSP430::PC)
-        return 3;
-    }
-    return 2;
+  case MSP430::Bi: // Emulated
+    return HasPCOperand ? 3 : 2;
 
   // rm translates to x(Rn) and Rm, PC [SLAU445I p.155]
   case MSP430::ADD16rm:
@@ -345,12 +354,8 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::MOV16rm:
   case MSP430::MOV8rm:
   case MSP430::MOVZX16rm8:
-  case MSP430::Bm:                                  // Emulated
-    for (const MachineOperand &MO : I.operands()) { // check for PC
-      if (MO.isReg() && MO.getReg() == MSP430::PC)
-        return 3; // 5 on Non MSP430 non X
-    }
-    return 3;
+  case MSP430::Bm: // Emulated
+    return 3;      // 5 on Non MSP430 non X (independent of PC operand)
 
   // rn translates to @Rn and Rm, PC [SLAU445I p.155]
   case MSP430::ADD16rn:
@@ -377,11 +382,7 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::XOR8rn:
   case MSP430::MOV16rn:
   case MSP430::MOV8rn:
-    for (const MachineOperand &MO : I.operands()) { // check for PC
-      if (MO.isReg() && MO.getReg() == MSP430::PC)
-        return 2; // 4 on Non MSP430 non X
-    }
-    return 2;
+    return 2; // 4 on Non MSP430 non X (independent of PC operand)
 
   // rp translates to @Rn+ and Rm, PC [SLAU445I p.155]
   case MSP430::ADD16rp:
@@ -408,11 +409,7 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::XOR8rp:
   case MSP430::MOV16rp:
   case MSP430::MOV8rp:
-    for (const MachineOperand &MO : I.operands()) { // check for PC
-      if (MO.isReg() && MO.getReg() == MSP430::PC)
-        return 3; // 4 on Non MSP430 non X
-    }
-    return 2;
+    return HasPCOperand ? 3 : 2; // 4 on Non MSP430 non X
 
   // rr translates to Rn and Rm or Rn and PC [SLAU445I p.155]
   case MSP430::ADD16rr:
@@ -440,12 +437,8 @@ unsigned getMSP430Latency(const MachineInstr &I) {
   case MSP430::MOV16rr:
   case MSP430::MOV8rr:
   case MSP430::MOVZX16rr8:
-  case MSP430::Br:                                  // Emulated
-    for (const MachineOperand &MO : I.operands()) { // check for PC
-      if (MO.isReg() && MO.getReg() == MSP430::PC)
-        return 2; // 3 on Non MSP430 non X
-    }
-    return 1;
+  case MSP430::Br:               // Emulated
+    return HasPCOperand ? 2 : 1; // 3 on Non MSP430 non X
     // End Format-I Instructions
 
   case MSP430::CFI_INSTRUCTION:
@@ -464,11 +457,39 @@ unsigned getMSP430Latency(const MachineInstr &I) {
     return 1; // TODO We just assume 1x nop all the time
 
   default:
-    errs() << "No Latency assigned to Inst: " << I << "\n";
-    assert(0 && "Instruction has no Latency!");
+    return std::nullopt;
   }
+}
 
+/// True if any operand of \p I is the PC register. The latency table needs only
+/// this one operand property (see msp430LatencyForOpcode).
+static bool anyOperandIsPC(const MachineInstr &I) {
+  for (const MachineOperand &MO : I.operands())
+    if (MO.isReg() && MO.getReg() == MSP430::PC)
+      return true;
+  return false;
+}
+
+static bool anyOperandIsPC(const MCInst &I) {
+  for (unsigned Idx = 0, E = I.getNumOperands(); Idx < E; ++Idx) {
+    const MCOperand &MO = I.getOperand(Idx);
+    if (MO.isReg() && MO.getReg() == MSP430::PC)
+      return true;
+  }
+  return false;
+}
+
+unsigned getMSP430Latency(const MachineInstr &I) {
+  if (std::optional<unsigned> L =
+          msp430LatencyForOpcode(I.getOpcode(), anyOperandIsPC(I)))
+    return *L;
+  errs() << "No Latency assigned to Inst: " << I << "\n";
+  assert(0 && "Instruction has no Latency!");
   return 0;
+}
+
+std::optional<unsigned> getMSP430Latency(const MCInst &I) {
+  return msp430LatencyForOpcode(I.getOpcode(), anyOperandIsPC(I));
 }
 
 void MSP430Target::checkInstruction(const MachineInstr &I) const {
@@ -860,9 +881,9 @@ void MSP430Target::checkInstruction(const MachineInstr &I) const {
 
 bool MSP430Target::isControlFlowMnemonic(StringRef Mnemonic) const {
   // MSP430 jumps (real + emulated), plus call and br.
-  static const char *const CF[] = {"jmp", "jeq", "jz",  "jne", "jnz", "jc",
-                                   "jhs", "jnc", "jlo", "jn",  "jge", "jl",
-                                   "call", "br"};
+  static const char *const CF[] = {"jmp", "jeq", "jz",   "jne", "jnz",
+                                   "jc",  "jhs", "jnc",  "jlo", "jn",
+                                   "jge", "jl",  "call", "br"};
   for (const char *M : CF)
     if (Mnemonic == M)
       return true;

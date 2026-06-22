@@ -4,8 +4,15 @@ using namespace llvm;
 
 static cl::OptionCategory LLTA("0. LLTA Options");
 
-cl::opt<std::string> DumpFilename("dump-file", cl::init("-"),
-                                  cl::desc("Input dump file"), cl::cat(LLTA));
+cl::opt<std::string> ElfFilename(
+    "elf-file", cl::init(""),
+    cl::desc(
+        "Path to the linked ELF executable. When provided, address "
+        "resolution and library-call (ABI) costing are driven from it via "
+        "llvm::object::ObjectFile + MCDisassembler. When omitted, the "
+        "analysis still runs but its result is reported as UNSOUND (no "
+        "linked-binary grounding: no memory model, no library-call costs)."),
+    cl::cat(LLTA));
 
 cl::opt<std::string> StartFunctionName(
     "start-function", cl::init(""),
@@ -42,7 +49,6 @@ cl::opt<bool> AddressResolverVerbose(
              "encoding cross-check mismatch and offset repair, with the "
              "function, instruction, expected vs. actual bytes and assembly."),
     cl::cat(LLTA));
-
 
 // MSP430(FR)-specific options (-fram-*) are owned by the MSP430 target:
 // lib/Targets/MSP430/MSP430Options.cpp.

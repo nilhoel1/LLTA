@@ -6,6 +6,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -65,8 +66,9 @@ public:
   // END: Machine Loop Bound Agregator Pass Containers
 
   // START: Address Resolver Pass Containers
-  // Real absolute address of each (code-emitting) MachineInstr, discovered from
-  // the objdump dump file by AdressResolverPass.
+  // Real absolute address of each (code-emitting) MachineInstr, recovered by
+  // AdressResolverPass by disassembling the linked ELF (-elf-file). Empty when
+  // no ELF was supplied (the result is then flagged unsound).
   std::unordered_map<const MachineInstr *, uint64_t> InstructionAddressMap;
   bool InstructionAddressMapSet = false;
 
@@ -74,9 +76,9 @@ public:
   bool hasInstructionAddress(const MachineInstr *MI) const;
   uint64_t getInstructionAddress(const MachineInstr *MI) const;
 
-  // Static branch/call target of each control-flow MachineInstr, recovered from
-  // the dump's trailing comment (";abs 0x...." for jumps, ";#0x...." for calls)
-  // by AdressResolverPass. Indirect transfers have no entry.
+  // Static branch/call target of each control-flow MachineInstr. Foundation
+  // only; the ELF-driven AdressResolverPass does not currently populate this
+  // (no timing pass consumes it), and indirect transfers have no entry.
   std::unordered_map<const MachineInstr *, uint64_t> BranchTargetMap;
   bool BranchTargetMapSet = false;
 
@@ -84,9 +86,9 @@ public:
   bool hasBranchTarget(const MachineInstr *MI) const;
   uint64_t getBranchTarget(const MachineInstr *MI) const;
 
-  // Data/heap objects discovered in the dump's data sections (.data, .bss,
-  // .rodata, .heap, ...) by AdressResolverPass. Foundation only; no timing pass
-  // consumes them yet.
+  // Data/heap objects discovered in the linked ELF's data sections (.data,
+  // .bss, .rodata, .heap, ...) by AdressResolverPass. Foundation only; no timing
+  // pass consumes them yet.
   struct DataObject {
     std::string Name;
     uint64_t Address = 0;
@@ -113,6 +115,20 @@ public:
   // START: MuArchStateGraph Container
   ProgramGraph MASG;
   // END: MuArchStateGraph Container
+
+  // START: Unsoundness tracking
+  // Reasons the reported WCET may be an under-approximation rather than a valid
+  // upper bound: e.g. no linked ELF was provided (no memory model /
+  // library-call costs), or a reachable call into a body-less function could
+  // not be costed. PathAnalysisPass prints these in an UNSOUND block after the
+  // WCET. An empty set means the result is sound. A std::set keeps reasons
+  // unique and sorted.
+  std::set<std::string> UnsoundReasons;
+
+  void addUnsoundReason(StringRef Reason);
+  const std::set<std::string> &getUnsoundReasons() const;
+  bool isUnsound() const;
+  // END: Unsoundness tracking
 };
 
 } // namespace llvm

@@ -10,6 +10,10 @@
 #include <string>
 #include <unordered_map>
 
+namespace llta {
+class RTTarget;
+} // namespace llta
+
 namespace llvm {
 
 class MachineFunction;
@@ -191,9 +195,21 @@ public:
                 &LoopBoundMap = {});
 
   /**
-   * Finalize the graph by adding call and return edges.
+   * Finalize the graph by adding call and return edges. \p Target (may be null)
+   * supplies costs for body-less external calls
+   * (RTTarget::getExternalCallCost); calls it cannot cost are recorded in
+   * UnsoundExternalCallees.
    */
-  bool finalize(MachineFunction &MF, MachineModuleInfo *MMI);
+  bool finalize(MachineFunction &MF, MachineModuleInfo *MMI,
+                const llta::RTTarget *Target);
+
+  /// Names of reachable external callees whose body is absent from the IR and
+  /// for which the target supplied no cost (so their cost was omitted). When
+  /// non-empty the WCET is an under-approximation; PathAnalysisPass lists
+  /// these.
+  const std::set<std::string> &getUnsoundExternalCallees() const {
+    return UnsoundExternalCallees;
+  }
 
   /**
    * The set vertices in the graph.
@@ -248,6 +264,20 @@ public:
    * Store call sites: map from caller node to callee Function.
    */
   std::vector<std::pair<unsigned, const Function *>> CallSites;
+
+  /**
+   * Call sites to backend-synthesized libcalls (MO_ExternalSymbol, e.g.
+   * __mspabi_*): caller node -> callee symbol name. These have no IR Function,
+   * so they are resolved by name against the target's external-call cost model
+   * in finalize().
+   */
+  std::vector<std::pair<unsigned, std::string>> ExternalSymbolCallSites;
+
+  /**
+   * Reachable body-less external callees that could not be costed (see
+   * getUnsoundExternalCallees).
+   */
+  std::set<std::string> UnsoundExternalCallees;
 
 private:
   /**

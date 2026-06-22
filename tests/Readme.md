@@ -8,9 +8,15 @@ live in `tests/srcMaelardalen/` (annotated with `#pragma loop_bound(lower, upper
 `tests/msp430/` has a modular Makefile. Prerequisite: `make -C tests/msp430 download`.
 
 ```bash
-make -C tests/msp430 TEST=cnt all        # C -> .ll -> .opt.ll -> .S -> .elf -> .dump
+make -C tests/msp430 TEST=cnt all        # C -> .ll -> .opt.ll -> .S -> .elf
 make -C tests/msp430 TEST=cnt analyze    # + loop bounds (LoopBoundPlugin) + WCET, into build_cnt/cnt.wcet
 ```
+
+The analyzer reads the linked `.elf` directly (`llta -elf-file=.../cnt.elf`) for
+address resolution and library-call costing — there is no longer a `.dump` step
+in the analysis path (`make ... TEST=cnt $(BUILD_DIR)/cnt.dump` still exists for
+human inspection only). Running `llta` without `-elf-file` produces an
+**UNSOUND**-marked WCET (no memory model, no library-call costs).
 
 Loop bounds: SCEV first, falling back to the plugin's JSON (from the source
 pragmas). IR is optimized with `mem2reg,...,loop-rotate,indvars` so SCEV sees
@@ -21,7 +27,7 @@ Build the whole suite at once (never aborts on one failure; prints a
 `BUILD`/`BOUNDS`/`ANALYZE` table):
 
 ```bash
-bash tests/msp430/build-suite.sh            # .ll + .dump for every benchmark
+bash tests/msp430/build-suite.sh            # .ll + .elf for every benchmark
 bash tests/msp430/build-suite.sh analyze    # + WCET analysis
 ```
 

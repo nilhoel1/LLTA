@@ -60,7 +60,8 @@ void TimingAnalysisResults::setInstructionAddress(const MachineInstr *MI,
   InstructionAddressMap[MI] = Address;
 }
 
-bool TimingAnalysisResults::hasInstructionAddress(const MachineInstr *MI) const {
+bool TimingAnalysisResults::hasInstructionAddress(
+    const MachineInstr *MI) const {
   return InstructionAddressMap.count(MI) != 0;
 }
 
@@ -125,5 +126,19 @@ uint64_t TimingAnalysisResults::getFRAMStart() const {
   return FRAMStart;
 }
 // END: Address Resolver Pass Containers
+
+// START: Unsoundness tracking
+void TimingAnalysisResults::addUnsoundReason(StringRef Reason) {
+  UnsoundReasons.insert(Reason.str());
+}
+
+const std::set<std::string> &TimingAnalysisResults::getUnsoundReasons() const {
+  return UnsoundReasons;
+}
+
+bool TimingAnalysisResults::isUnsound() const {
+  return !UnsoundReasons.empty();
+}
+// END: Unsoundness tracking
 
 } // namespace llvm

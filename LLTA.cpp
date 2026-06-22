@@ -338,6 +338,10 @@ int main(int argc, char **argv) {
   InitializeAllTargetMCs();
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
+  // MODIFICATION:
+  // Disassemblers back AdressResolverPass's ELF decoding (-elf-file).
+  InitializeAllDisassemblers();
+  // END MODIFICATION
 
   // Initialize codegen and IR passes used by llc so that the -print-after,
   // -print-before, and -stop-after options work.

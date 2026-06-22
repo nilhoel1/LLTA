@@ -12,17 +12,21 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/IR/Module.h"
+#include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Triple.h"
@@ -30,7 +34,6 @@
 #include <algorithm>
 #include <climits>
 #include <cstdio>
-#include <fstream>
 #include <limits>
 
 namespace llvm {
@@ -41,6 +44,10 @@ char AdressResolverPass::ID = 1;
 /// does not byte-match at the current dump cursor (e.g. an inline-asm body or
 /// an unhandled expansion sits in between).
 static constexpr size_t ResyncWindow = 32;
+
+/// Space-separated lower-case hex of a byte vector (diagnostics). Defined
+/// below.
+static std::string toHex(const std::vector<uint8_t> &Bytes);
 
 AdressResolverPass::AdressResolverPass(TimingAnalysisResults &TAR)
     : MachineFunctionPass(ID), TAR(TAR) {}
@@ -133,24 +140,11 @@ bool AdressResolverPass::isAnalyzed(const MachineFunction &F) const {
 }
 
 bool AdressResolverPass::doInitialization(Module &M) {
-  // Dump parsing below needs the target's (target-specific) control-flow
-  // mnemonic set and branch-target comment parsing. The target is installed
-  // when the pass pipeline is built, before this runs.
-  Target = &TAR.getTarget();
+  // The ELF is parsed lazily on the first machine function (the disassembler
+  // needs the active subtarget, only reachable from a MachineFunction). Here we
+  // only handle options that do not need it.
 
-  parseFile(DumpFilename);
-
-  // Collect sorted, unique function entry addresses so we can derive the end of
-  // each function as "the next function entry".
-  SortedEntryAddrs.clear();
-  for (const auto &KV : FunctionEntryAddr)
-    SortedEntryAddrs.push_back(KV.second);
-  std::sort(SortedEntryAddrs.begin(), SortedEntryAddrs.end());
-  SortedEntryAddrs.erase(
-      std::unique(SortedEntryAddrs.begin(), SortedEntryAddrs.end()),
-      SortedEntryAddrs.end());
-
-  // Parse and store the FRAM start address (foundation only).
+  // Parse and store the FRAM start address (consumed by the memory model).
   if (!FRAMStartAddress.empty()) {
     uint64_t FRAM = 0;
     if (StringRef(FRAMStartAddress).getAsInteger(0, FRAM)) {
@@ -163,9 +157,22 @@ bool AdressResolverPass::doInitialization(Module &M) {
                << Twine::utohexstr(FRAM) << "\n";
     }
   }
+  return false;
+}
+
+void AdressResolverPass::finishParse() {
+  // Collect sorted, unique function entry addresses so we can derive the end of
+  // each function as "the next function entry".
+  SortedEntryAddrs.clear();
+  for (const auto &KV : FunctionEntryAddr)
+    SortedEntryAddrs.push_back(KV.second);
+  std::sort(SortedEntryAddrs.begin(), SortedEntryAddrs.end());
+  SortedEntryAddrs.erase(
+      std::unique(SortedEntryAddrs.begin(), SortedEntryAddrs.end()),
+      SortedEntryAddrs.end());
 
   // Derive each data object's size as "next symbol address minus its own
-  // address", using the sorted set of all symbol header addresses (code+data).
+  // address", using the sorted set of all symbol addresses (code+data).
   std::sort(AllSymbolAddrs.begin(), AllSymbolAddrs.end());
   AllSymbolAddrs.erase(
       std::unique(AllSymbolAddrs.begin(), AllSymbolAddrs.end()),
@@ -178,25 +185,34 @@ bool AdressResolverPass::doInitialization(Module &M) {
   }
 
   if (AddressResolverVerbose) {
-    size_t Targets = 0;
-    for (const auto &DI : DumpInstructions)
-      if (DI.HasTarget)
-        ++Targets;
     outs() << "[addr-resolver] parsed " << DumpInstructions.size()
-           << " dump instructions, " << FunctionEntryAddr.size()
-           << " function entries, " << DataObjects.size()
-           << " data objects, " << Targets << " static jump/call targets from "
-           << DumpFilename << "\n";
+           << " instructions, " << FunctionEntryAddr.size()
+           << " function entries, " << DataObjects.size() << " data objects\n";
     for (const auto &Obj : DataObjects)
       outs() << "[addr-resolver]   data " << Obj.Name << " @0x"
              << Twine::utohexstr(Obj.Address) << " size " << Obj.Size << " ("
              << Obj.Section << ")\n";
   }
-  return false;
 }
 
 bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
   setupEncoder(F);
+
+  // Parse the linked binary once, lazily: the disassembler needs the subtarget,
+  // which is only available from a machine function.
+  if (!Parsed) {
+    Parsed = true;
+    if (!ElfFilename.empty()) {
+      parseElf(F);
+    } else {
+      // No linked binary: addresses, the memory model and library-call costs
+      // are all unavailable. Run MIR-only and flag the result as unsound.
+      TAR.addUnsoundReason(
+          "no -elf-file: no linked-binary grounding (memory model and "
+          "library-call costs omitted)");
+    }
+    finishParse();
+  }
 
   if (!AnalyzedComputed) {
     computeAnalyzedSet(getAnalysis<CallGraphWrapperPass>().getCallGraph());
@@ -217,8 +233,8 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
   uint64_t Entry = It->second;
   // End of this function = first function entry strictly greater than Entry.
   uint64_t End = std::numeric_limits<uint64_t>::max();
-  auto Hi = std::upper_bound(SortedEntryAddrs.begin(), SortedEntryAddrs.end(),
-                             Entry);
+  auto Hi =
+      std::upper_bound(SortedEntryAddrs.begin(), SortedEntryAddrs.end(), Entry);
   if (Hi != SortedEntryAddrs.end())
     End = *Hi;
 
@@ -239,19 +255,10 @@ bool AdressResolverPass::runOnMachineFunction(MachineFunction &F) {
 }
 
 //===----------------------------------------------------------------------===//
-// Dump parsing
+// Section classification
 //===----------------------------------------------------------------------===//
 
-bool AdressResolverPass::isHexStr(StringRef S) {
-  if (S.empty())
-    return false;
-  for (char C : S)
-    if (!isxdigit(static_cast<unsigned char>(C)))
-      return false;
-  return true;
-}
-
-/// Classifies an objdump section by name. Code = executable sections; Data =
+/// Classifies an ELF section by name. Code = executable sections; Data =
 /// everything that holds objects (.data/.bss/.rodata/.heap/...); Ignore = debug
 /// and metadata. Classification is by exclusion so new data section names
 /// (e.g. .rodata2, .fram_smallheap) are picked up automatically.
@@ -267,189 +274,153 @@ AdressResolverPass::classifySection(StringRef Name) {
   return SectionClass::Data;
 }
 
-/// Parses a symbol header line of the form "0000401c <main>:" into its address
-/// and symbol name. Returns false for anything else.
-bool AdressResolverPass::parseHeaderLine(const std::string &Line, uint64_t &Addr,
-                                         std::string &Name) {
-  std::string::size_type Lt = Line.find('<');
-  std::string::size_type Gt = Line.find(">:");
-  if (Lt == std::string::npos || Gt == std::string::npos || Gt < Lt)
-    return false;
-  StringRef Left = StringRef(Line).substr(0, Lt).trim();
-  if (!isHexStr(Left) || Left.getAsInteger(16, Addr))
-    return false;
-  Name = Line.substr(Lt + 1, Gt - (Lt + 1));
-  return true;
-}
+//===----------------------------------------------------------------------===//
+// ELF parsing
+//===----------------------------------------------------------------------===//
 
-/// Parses an instruction line of the form
-///   "    401c:\tb0 12 2c 40 \tcall\t#16428\t;#0x402c"
-/// Returns false if the line is not an instruction (no leading "hexaddr:" with
-/// at least one machine-code byte). \p HasAsm is set to false for continuation
-/// lines (extension words printed on their own line, no mnemonic).
-bool AdressResolverPass::parseInstructionLine(const std::string &Line,
-                                              DumpInstruction &Out,
-                                              bool &HasAsm) {
-  std::string::size_type Colon = Line.find(':');
-  if (Colon == std::string::npos || Colon == 0)
-    return false;
-  StringRef Left = StringRef(Line).substr(0, Colon).trim();
-  uint64_t Addr = 0;
-  if (!isHexStr(Left) || Left.getAsInteger(16, Addr))
-    return false;
+void AdressResolverPass::parseElf(const MachineFunction &F) {
+  using namespace llvm::object;
 
-  // Split off the trailing comment; it carries the static branch/call target.
-  std::string Rest = Line.substr(Colon + 1);
-  std::string Comment;
-  std::string::size_type Semi = Rest.find(';');
-  if (Semi != std::string::npos) {
-    Comment = Rest.substr(Semi + 1);
-    Rest = Rest.substr(0, Semi);
+  // Build a disassembler from the active subtarget. DisCtx must outlive DisAsm,
+  // so declare it first (locals destruct in reverse order).
+  const TargetMachine &TM = F.getTarget();
+  const MCSubtargetInfo *Sti = &F.getSubtarget();
+  const MCAsmInfo *MAI = TM.getMCAsmInfo();
+  const MCRegisterInfo *MRI = TM.getMCRegisterInfo();
+  if (!MAI || !MRI || !Sti) {
+    errs() << "[addr-resolver] warning: missing MC info; cannot disassemble "
+              "the ELF\n";
+    return;
   }
-
-  // Tokenise on whitespace (space and tab).
-  std::vector<std::string> Tokens;
-  {
-    std::string Cur;
-    for (char C : Rest) {
-      if (C == ' ' || C == '\t' || C == '\r') {
-        if (!Cur.empty()) {
-          Tokens.push_back(Cur);
-          Cur.clear();
-        }
-      } else {
-        Cur.push_back(C);
-      }
-    }
-    if (!Cur.empty())
-      Tokens.push_back(Cur);
-  }
-
-  // Leading two-hex-digit tokens are machine-code bytes.
-  std::vector<uint8_t> Bytes;
-  size_t I = 0;
-  for (; I < Tokens.size(); ++I) {
-    if (Tokens[I].size() == 2 && isHexStr(Tokens[I]))
-      Bytes.push_back(static_cast<uint8_t>(std::stoul(Tokens[I], nullptr, 16)));
-    else
-      break;
-  }
-  if (Bytes.empty())
-    return false; // not an instruction line
-
-  std::string Asm;
-  for (; I < Tokens.size(); ++I) {
-    if (!Asm.empty())
-      Asm.push_back(' ');
-    Asm += Tokens[I];
-  }
-
-  std::string MachineCode;
-  for (size_t B = 0; B < Bytes.size(); ++B) {
-    if (B)
-      MachineCode.push_back(' ');
-    char Buf[3];
-    std::snprintf(Buf, sizeof(Buf), "%02x", Bytes[B]);
-    MachineCode += Buf;
-  }
-
-  Out.Address = Addr;
-  Out.Bytes = std::move(Bytes);
-  Out.MachineCode = std::move(MachineCode);
-  Out.AssemblerCode = Asm;
-  HasAsm = !Asm.empty();
-
-  // The first asm token is the mnemonic; resolve a static target from the
-  // comment for control-flow instructions via the active target.
-  StringRef Mnemonic = StringRef(Out.AssemblerCode).split(' ').first;
-  if (Target) {
-    if (std::optional<uint64_t> T =
-            Target->resolveBranchTarget(Mnemonic, Comment)) {
-      Out.TargetAddress = *T;
-      Out.HasTarget = true;
-    }
-  }
-  return true;
-}
-
-void AdressResolverPass::parseFile(StringRef FilePath) {
-  std::ifstream In(FilePath.str().c_str());
-  if (!In.is_open()) {
-    errs() << "[addr-resolver] warning: could not open dump file '" << FilePath
-           << "'\n";
+  MCContext DisCtx(TM.getTargetTriple(), MAI, MRI, Sti);
+  std::unique_ptr<MCDisassembler> DisAsm(
+      TM.getTarget().createMCDisassembler(*Sti, DisCtx));
+  if (!DisAsm) {
+    errs() << "[addr-resolver] warning: no disassembler for this target; ELF "
+              "address resolution disabled\n";
     return;
   }
 
-  std::string Line;
-  bool PendingHeader = false;
-  uint64_t PendingAddr = 0;
-  std::string PendingName;
-  SectionClass CurClass = SectionClass::Unknown;
-  std::string CurSection;
+  // Open the linked ELF.
+  ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+      MemoryBuffer::getFile(ElfFilename);
+  if (!BufOrErr) {
+    errs() << "[addr-resolver] warning: could not open -elf-file '"
+           << ElfFilename << "': " << BufOrErr.getError().message() << "\n";
+    return;
+  }
+  Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
+      ObjectFile::createObjectFile((*BufOrErr)->getMemBufferRef());
+  if (!ObjOrErr) {
+    logAllUnhandledErrors(ObjOrErr.takeError(), errs(),
+                          "[addr-resolver] could not parse -elf-file: ");
+    return;
+  }
+  ObjectFile &Obj = **ObjOrErr;
 
-  while (std::getline(In, Line)) {
-    // Section marker, e.g. "Disassembly of section .data:". Switches the
-    // classification used for subsequent symbols.
-    StringRef T = StringRef(Line).trim();
-    if (T.consume_front("Disassembly of section ") && T.ends_with(":")) {
-      CurSection = T.drop_back(1).str(); // strip trailing ':'
-      CurClass = classifySection(CurSection);
-      PendingHeader = false;
+  // 1) Symbols -> function entries, data objects, and the union of symbol
+  // addresses (for data-object size derivation).
+  for (const SymbolRef &Sym : Obj.symbols()) {
+    Expected<uint32_t> FlagsOrErr = Sym.getFlags();
+    if (!FlagsOrErr) {
+      consumeError(FlagsOrErr.takeError());
       continue;
     }
+    if (*FlagsOrErr & SymbolRef::SF_Undefined)
+      continue;
 
-    // Resolve a pending header: the first non-empty line after a "<NAME>:"
-    // header tells us whether NAME is a real function ("NAME():") or just an
-    // internal label (a source path or an instruction).
-    if (PendingHeader) {
-      StringRef Trimmed = StringRef(Line).trim();
-      if (Trimmed.empty())
-        continue; // keep the header pending across blank lines
-      // Only record real functions, and only in code sections, so data symbols
-      // that happen to print a "NAME():" line (e.g. __heap_start__) are not
-      // mistaken for functions.
-      if (Trimmed.ends_with("():") && CurClass != SectionClass::Data &&
-          CurClass != SectionClass::Ignore)
-        FunctionEntryAddr[PendingName] = PendingAddr;
-      PendingHeader = false;
-      // Fall through: this line is never itself an instruction line.
-    }
-
-    uint64_t HdrAddr = 0;
-    std::string HdrName;
-    if (parseHeaderLine(Line, HdrAddr, HdrName)) {
-      AllSymbolAddrs.push_back(HdrAddr);
-      if (CurClass == SectionClass::Data) {
-        // Data/heap object: record it directly (size is derived once the whole
-        // file is parsed); no function "():" check needed.
-        TimingAnalysisResults::DataObject Obj;
-        Obj.Name = HdrName;
-        Obj.Address = HdrAddr;
-        Obj.Section = CurSection;
-        DataObjects.push_back(std::move(Obj));
-        continue;
-      }
-      PendingHeader = true;
-      PendingAddr = HdrAddr;
-      PendingName = HdrName;
+    Expected<StringRef> NameOrErr = Sym.getName();
+    Expected<uint64_t> AddrOrErr = Sym.getAddress();
+    if (!NameOrErr || !AddrOrErr) {
+      if (!NameOrErr)
+        consumeError(NameOrErr.takeError());
+      if (!AddrOrErr)
+        consumeError(AddrOrErr.takeError());
       continue;
     }
+    StringRef Name = *NameOrErr;
+    uint64_t Addr = *AddrOrErr;
+    if (Name.empty())
+      continue;
 
-    DumpInstruction DI;
-    bool HasAsm = false;
-    if (parseInstructionLine(Line, DI, HasAsm)) {
-      if (!HasAsm && !DumpInstructions.empty()) {
-        // Continuation line: append its extension words to the previous
-        // instruction instead of creating a new entry.
-        DumpInstruction &Prev = DumpInstructions.back();
-        Prev.Bytes.insert(Prev.Bytes.end(), DI.Bytes.begin(), DI.Bytes.end());
-        if (!DI.MachineCode.empty())
-          Prev.MachineCode += " " + DI.MachineCode;
-      } else {
-        DumpInstructions.push_back(std::move(DI));
+    // Resolve the symbol's section name for classification.
+    StringRef SecName;
+    if (Expected<section_iterator> SecOrErr = Sym.getSection()) {
+      section_iterator SecIt = *SecOrErr;
+      if (SecIt != Obj.section_end()) {
+        if (Expected<StringRef> N = SecIt->getName())
+          SecName = *N;
+        else
+          consumeError(N.takeError());
       }
+    } else {
+      consumeError(SecOrErr.takeError());
+    }
+
+    Expected<SymbolRef::Type> TyOrErr = Sym.getType();
+    SymbolRef::Type Ty = TyOrErr ? *TyOrErr : SymbolRef::ST_Unknown;
+    if (!TyOrErr)
+      consumeError(TyOrErr.takeError());
+
+    AllSymbolAddrs.push_back(Addr);
+
+    if (Ty == SymbolRef::ST_Function) {
+      // Real function (STT_FUNC) -> entry address. Mirrors the dump path, which
+      // only recorded "<name>():" symbols. Keep the first if a name repeats.
+      FunctionEntryAddr.try_emplace(Name.str(), Addr);
+    } else if (classifySection(SecName) == SectionClass::Data) {
+      TimingAnalysisResults::DataObject DObj;
+      DObj.Name = Name.str();
+      DObj.Address = Addr;
+      DObj.Section = SecName.str();
+      DataObjects.push_back(std::move(DObj));
     }
   }
+
+  // 2) Code sections -> per-instruction {address, bytes} via the disassembler.
+  // alignFunction consumes these exactly as it did the dump entries.
+  for (const SectionRef &Sec : Obj.sections()) {
+    StringRef SecName;
+    if (Expected<StringRef> N = Sec.getName())
+      SecName = *N;
+    else
+      consumeError(N.takeError());
+    if (classifySection(SecName) != SectionClass::Code)
+      continue;
+
+    Expected<StringRef> ContentsOrErr = Sec.getContents();
+    if (!ContentsOrErr) {
+      consumeError(ContentsOrErr.takeError());
+      continue;
+    }
+    StringRef Contents = *ContentsOrErr;
+    const uint64_t Base = Sec.getAddress();
+    ArrayRef<uint8_t> Data(reinterpret_cast<const uint8_t *>(Contents.data()),
+                           Contents.size());
+
+    uint64_t Off = 0;
+    while (Off < Data.size()) {
+      MCInst Inst;
+      uint64_t InstSize = 0;
+      MCDisassembler::DecodeStatus St = DisAsm->getInstruction(
+          Inst, InstSize, Data.slice(Off), Base + Off, nulls());
+      if (St != MCDisassembler::Success || InstSize == 0) {
+        // Data/padding inside a code section: step the minimum MSP430
+        // instruction width and resync.
+        Off += 2;
+        continue;
+      }
+      DumpInstruction DI;
+      DI.Address = Base + Off;
+      DI.Bytes.assign(Data.begin() + Off, Data.begin() + Off + InstSize);
+      DI.MachineCode = toHex(DI.Bytes);
+      DumpInstructions.push_back(std::move(DI));
+      Off += InstSize;
+    }
+  }
+
+  if (AddressResolverVerbose)
+    outs() << "[addr-resolver] decoded ELF '" << ElfFilename << "'\n";
 }
 
 //===----------------------------------------------------------------------===//
@@ -482,6 +453,12 @@ void AdressResolverPass::setupEncoder(MachineFunction &F) {
 bool AdressResolverPass::tryEncode(const MachineInstr &MI,
                                    std::vector<uint8_t> &Bytes) {
   if (!EncoderUsable)
+    return false;
+
+  // Pseudo instructions have no machine encoding; the MC code emitter
+  // report_fatal_error()s on them (it cannot be caught). They are never useful
+  // re-sync anchors, so treat them as non-anchorable up front.
+  if (MI.isPseudo())
     return false;
 
   // Only "simple" instructions (register/immediate/regmask operands) are
@@ -560,8 +537,10 @@ void AdressResolverPass::alignFunction(
       if (DumpIdx >= Range.size()) {
         ++Warnings;
         if (V) {
-          errs() << "[addr-resolver] " << FName << ": ran out of dump entries "
-                    "(MI #" << MiIdx << "): ";
+          errs() << "[addr-resolver] " << FName
+                 << ": ran out of dump entries "
+                    "(MI #"
+                 << MiIdx << "): ";
           MI.print(errs());
         }
         continue;
@@ -579,8 +558,8 @@ void AdressResolverPass::alignFunction(
       if (Anchor && !UsableAnchor && V)
         outs() << "[addr-resolver] " << FName << ": MI #" << MiIdx
                << " encodes to a different addressing form than the dump "
-                  "(enc [" << toHex(Bytes) << "] vs dump ["
-               << Range[DumpIdx]->MachineCode
+                  "(enc ["
+               << toHex(Bytes) << "] vs dump [" << Range[DumpIdx]->MachineCode
                << "]); skipping as anchor\n";
 
       if (UsableAnchor && Range[DumpIdx]->Bytes != Bytes) {
@@ -608,8 +587,8 @@ void AdressResolverPass::alignFunction(
           if (Diagnose)
             ++Cov.MismatchEvents;
           if (V) {
-            errs() << "[addr-resolver] " << FName << ": encoding mismatch at MI #"
-                   << MiIdx << " (dump 0x"
+            errs() << "[addr-resolver] " << FName
+                   << ": encoding mismatch at MI #" << MiIdx << " (dump 0x"
                    << Twine::utohexstr(Range[DumpIdx]->Address)
                    << "): expected [" << toHex(Bytes) << "] got ["
                    << Range[DumpIdx]->MachineCode << "] asm='"

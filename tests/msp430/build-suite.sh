@@ -7,11 +7,12 @@
 # directories.
 #
 # Drives the modular Makefile once per source in ../srcMaelardalen, producing a
-# .opt.ll and a .dump for each. With "analyze" it also runs the full LLTA WCET
-# analysis (loop bounds via the Clang LoopBoundPlugin + dump-file resolution).
+# .opt.ll and a linked .elf for each. With "analyze" it also runs the full LLTA
+# WCET analysis (loop bounds via the Clang LoopBoundPlugin + ELF-based address
+# resolution and library-call costing, llta -elf-file=...).
 #
 # Usage:
-#   ./build-suite.sh            # build .ll + .dump for every benchmark
+#   ./build-suite.sh            # build .ll + .elf for every benchmark
 #   ./build-suite.sh analyze    # also run WCET analysis
 #
 # Per-benchmark output is captured in build_<name>/build.log. One benchmark

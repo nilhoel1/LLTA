@@ -10,6 +10,7 @@
 
 namespace llvm {
 class MachineInstr;
+class MCInst;
 class MachineFunctionPass;
 class TimingAnalysisResults;
 class AbstractAnalysable;
@@ -45,12 +46,35 @@ public:
   /// Base latency of \p MI in CPU cycles, assuming zero memory wait states.
   /// Device-specific memory penalties (e.g. FRAM wait states) are added by the
   /// target's memory-model passes, not here.
-  virtual unsigned getInstructionLatency(const llvm::MachineInstr &MI) const = 0;
+  virtual unsigned
+  getInstructionLatency(const llvm::MachineInstr &MI) const = 0;
+
+  /// Base latency of an instruction decoded from the linked ELF (an `MCInst`),
+  /// or nullopt if this target has no latency model for it. Used to cost
+  /// library-call (ABI) routines whose bodies are absent from the analyzed IR.
+  /// Default: none (no ABI costing) — the caller then reports the result as
+  /// unsound.
+  virtual std::optional<unsigned>
+  getInstructionLatency(const llvm::MCInst &MI) const {
+    return std::nullopt;
+  }
 
   /// Validate that \p MI conforms to the timing model's assumptions (e.g. no
   /// un-lowered pseudo instructions). Diagnoses on errs() and asserts on a
   /// violation; a no-op for instructions the model understands.
   virtual void checkInstruction(const llvm::MachineInstr &MI) const = 0;
+
+  /// Worst-case cycle cost to charge for a call into the external function
+  /// \p CalleeName whose body is absent from the analyzed IR (e.g. a libgcc
+  /// `__mspabi_*` soft-float routine, or libm `sin`/`cos`). This is the callee
+  /// *body* cost only — the `call` instruction itself is costed at the call
+  /// site. Returns nullopt if the target has no cost for that callee, in which
+  /// case the call is left uncosted and the WCET is reported as unsound.
+  /// Default: none (no library-call costing).
+  virtual std::optional<unsigned>
+  getExternalCallCost(llvm::StringRef CalleeName) const {
+    return std::nullopt;
+  }
 
   /// Maximum number of 16-bit code words a single instruction can fetch. Used
   /// to cap the per-instruction fetch-word count derived from address gaps so a
@@ -86,9 +110,9 @@ public:
   //===--- Microarchitecture ----------------------------------------------===//
 
   /// The target's microarchitectural pipeline model, used as the transfer
-  /// function for the abstract-interpretation WorklistSolver in PathAnalysisPass.
-  /// Owned by the target (which outlives the analysis); returned by mutable
-  /// reference because the solver drives it.
+  /// function for the abstract-interpretation WorklistSolver in
+  /// PathAnalysisPass. Owned by the target (which outlives the analysis);
+  /// returned by mutable reference because the solver drives it.
   virtual llvm::AbstractAnalysable &getPipeline() const = 0;
 };
 

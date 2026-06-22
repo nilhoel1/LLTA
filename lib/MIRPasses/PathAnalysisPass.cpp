@@ -119,6 +119,24 @@ bool PathAnalysisPass::doFinalization(Module &M) {
     // under-report the WCET, which is unsound).
     outs() << "WCET (worst-case execution time): "
            << static_cast<unsigned>(std::llround(Result.WCET)) << " cycles\n";
+
+    // Surface any reason the bound may be an under-approximation rather than a
+    // valid upper bound. The numeric WCET line above is kept verbatim (the
+    // regression harness greps for it); this block is purely additive.
+    const auto &Reasons = TAR.getUnsoundReasons();
+    const auto &Callees = TAR.MASG.getUnsoundExternalCallees();
+    if (!Reasons.empty() || !Callees.empty()) {
+      outs()
+          << "\n*** WARNING: this WCET is UNSOUND (under-approximation) ***\n";
+      for (const auto &R : Reasons)
+        outs() << "  - " << R << "\n";
+      if (!Callees.empty()) {
+        outs() << "  - reachable calls into body-less functions were costed as "
+                  "0 cycles (no cost model):\n";
+        for (const auto &C : Callees)
+          outs() << "      " << C << "\n";
+      }
+    }
   } else {
     outs() << "Failed to compute WCET.\n";
     return false;
