@@ -4,6 +4,7 @@
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/Debug.h"
@@ -143,112 +144,155 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
       outs() << "  Machine loop with header MBB " << Header->getNumber() << " ("
              << Header->getName() << ")";
 
-    if (!BB) {
-      outs() << " - NO IR BasicBlock mapped!\n";
-      continue;
-    }
+    // Try to recover the matching IR loop. After loop-rotation + ISel a machine
+    // loop's header does not always map cleanly to the IR loop header: its IR
+    // block can be a rotated guard/pre-header (so LoopInfo reports a different
+    // header, or none), or the machine block may carry no IR block at all. A
+    // clean IR loop unlocks SCEV trip counts and !llvm.loop start-location
+    // debug info; when it is missing we do NOT drop the loop (that would leave
+    // it unbounded) -- we fall back to the machine-block pragma scan below.
+    Loop *L = BB ? LI.getLoopFor(BB) : nullptr;
+    bool CleanIRLoop = L && L->getHeader() == BB;
 
-    if (DebugPrints)
-      outs() << " maps to IR BB " << BB->getName() << "\n";
-
-    Loop *L = LI.getLoopFor(BB);
-    if (!L) {
-      outs() << "    - No IR Loop found for this BB\n";
-      continue;
+    if (DebugPrints) {
+      if (!BB)
+        outs() << " - no IR BasicBlock mapped";
+      else
+        outs() << " maps to IR BB " << BB->getName();
+      if (BB && !L)
+        outs() << " - no IR loop for this BB";
+      else if (L && !CleanIRLoop)
+        outs() << " - IR loop header mismatch (" << L->getHeader()->getName()
+               << ")";
+      else if (CleanIRLoop)
+        outs() << " - found matching IR loop";
+      outs() << "\n";
     }
-
-    // Check if the IR loop header matches the Machine loop header's BB
-    // This ensures we are looking at the same loop structure
-    if (L->getHeader() != BB) {
-      outs() << "    - IR Loop header mismatch: IR loop header is "
-             << L->getHeader()->getName() << "\n";
-      continue;
-    }
-    if (DebugPrints)
-      outs() << "    - Found matching IR loop\n";
 
     unsigned TripCount = 0;
 
-    // First try to get trip count from SCEV
-    TripCount = SE.getSmallConstantTripCount(L);
-    // getSmallConstantTripCount returns 0 if unknown or not constant.
-    // It also returns the exact trip count, not the bound.
-    // But for timing analysis, exact trip count is often what we want if it's
-    // constant. If it's not constant, we might want max backedge taken count.
-    if (DebugPrints)
-      outs() << "    - SmallConstantTripCount: " << TripCount << "\n";
-
-    // SCEV's constant max-backedge-taken count is only a *pessimistic*
-    // over-approximation: for a loop SCEV cannot bound, it returns the index
-    // type's maximum (e.g. 32766 on a 16-bit target). Compute it here but do
-    // NOT let it shadow a tight JSON pragma bound -- it is applied only as a
-    // last resort, after the JSON lookup below.
-    unsigned MaxBTCTripCount = 0;
-    if (TripCount == 0) {
-      const SCEV *MaxBTC = SE.getConstantMaxBackedgeTakenCount(L);
+    if (CleanIRLoop) {
+      // First try to get trip count from SCEV.
+      TripCount = SE.getSmallConstantTripCount(L);
+      // getSmallConstantTripCount returns 0 if unknown or not constant.
+      // It also returns the exact trip count, not the bound.
+      // But for timing analysis, exact trip count is often what we want if it's
+      // constant. If it's not constant, we might want max backedge taken count.
       if (DebugPrints)
-        outs() << "    - Trying max backedge taken count: " << *MaxBTC << "\n";
-      if (auto *C = dyn_cast<SCEVConstant>(MaxBTC)) {
-        MaxBTCTripCount = C->getAPInt().getZExtValue() + 1; // BTC + 1
+        outs() << "    - SmallConstantTripCount: " << TripCount << "\n";
+
+      // SCEV's constant max-backedge-taken count is only a *pessimistic*
+      // over-approximation: for a loop SCEV cannot bound, it returns the index
+      // type's maximum (e.g. 32766 on a 16-bit target). Compute it here but do
+      // NOT let it shadow a tight JSON pragma bound -- it is applied only as a
+      // last resort, after the JSON lookup below.
+      unsigned MaxBTCTripCount = 0;
+      if (TripCount == 0) {
+        const SCEV *MaxBTC = SE.getConstantMaxBackedgeTakenCount(L);
         if (DebugPrints)
-          outs() << "    - Max BTC trip count (fallback): " << MaxBTCTripCount
+          outs() << "    - Trying max backedge taken count: " << *MaxBTC
+                 << "\n";
+        if (auto *C = dyn_cast<SCEVConstant>(MaxBTC)) {
+          MaxBTCTripCount = C->getAPInt().getZExtValue() + 1; // BTC + 1
+          if (DebugPrints)
+            outs() << "    - Max BTC trip count (fallback): " << MaxBTCTripCount
+                   << "\n";
+        }
+      }
+
+      // Prefer the JSON pragma bound over the loose max-BTC estimate. The clang
+      // plugin records each bound at the loop *statement* line (e.g. the
+      // `while` keyword via getBeginLoc), so match on the loop's start location
+      // -- not the header's first body instruction, which sits one line into
+      // the loop after rotation.
+      if (TripCount == 0 && !JSONBounds.empty()) {
+        // Build the basename:line key (same normalization as the JSON map
+        // above), look it up, record the trip count on a hit. Returns true on a
+        // hit.
+        auto TryJSONLookup = [&](const DebugLoc &DL) -> bool {
+          if (!DL)
+            return false;
+          StringRef Base = sys::path::filename(DL->getFilename());
+          std::string Key = (Base + ":" + std::to_string(DL->getLine())).str();
+          auto It = JSONBoundsByLocation.find(Key);
+          if (It != JSONBoundsByLocation.end()) {
+            TripCount = It->second;
+            if (DebugPrints)
+              outs() << "    - Got trip count from JSON: " << TripCount
+                     << " (location: " << Key << ")\n";
+            return true;
+          }
+          if (DebugPrints)
+            outs() << "    - No JSON bound found for location: " << Key << "\n";
+          return false;
+        };
+
+        // Primary: the loop's start location (from !llvm.loop metadata) lines
+        // up with the plugin's recorded line. Fall back to the header's first
+        // non-PHI instruction for loops lacking loop-start debug info.
+        if (!TryJSONLookup(L->getStartLoc())) {
+          for (const Instruction &I : *BB) {
+            if (!isa<PHINode>(I)) {
+              TryJSONLookup(I.getDebugLoc());
+              break; // Only check the first non-PHI instruction
+            }
+          }
+        }
+      }
+
+      // Last resort: fall back to the pessimistic SCEV max-BTC bound only when
+      // neither an exact SCEV trip count nor a JSON bound was available.
+      if (TripCount == 0 && MaxBTCTripCount > 0) {
+        TripCount = MaxBTCTripCount;
+        if (DebugPrints)
+          outs() << "    - Using max-BTC fallback trip count: " << TripCount
                  << "\n";
       }
     }
 
-    // Prefer the JSON pragma bound over the loose max-BTC estimate. The clang
-    // plugin records each bound at the loop *statement* line (e.g. the `while`
-    // keyword via getBeginLoc), so match on the loop's start location -- not the
-    // header's first body instruction, which sits one line into the loop after
-    // rotation.
+    // Machine-block pragma fallback. Reached when no clean IR loop was
+    // available (so the SCEV / start-location path above never ran) or it
+    // produced no bound. Match a JSON pragma against the source lines covered
+    // by this loop's *own* machine blocks, excluding nested sub-loops so an
+    // outer loop never grabs an inner loop's bound. Pick the smallest matching
+    // line: a loop's own statement (the `for`/`while` the plugin annotated)
+    // sits at the lexically-first source line of its region. This recovers
+    // bounds for rotated loops whose machine header no longer maps to the IR
+    // loop header, and attaches them to the genuine machine-loop header the ILP
+    // uses.
     if (TripCount == 0 && !JSONBounds.empty()) {
-      // Build the basename:line key (same normalization as the JSON map above),
-      // look it up, and record the trip count on a hit. Returns true on a hit.
-      auto TryJSONLookup = [&](const DebugLoc &DL) -> bool {
-        if (!DL)
-          return false;
-        StringRef Base = sys::path::filename(DL->getFilename());
-        std::string Key = (Base + ":" + std::to_string(DL->getLine())).str();
-        auto It = JSONBoundsByLocation.find(Key);
-        if (It != JSONBoundsByLocation.end()) {
-          TripCount = It->second;
-          if (DebugPrints)
-            outs() << "    - Got trip count from JSON: " << TripCount
-                   << " (location: " << Key << ")\n";
-          return true;
-        }
-        if (DebugPrints)
-          outs() << "    - No JSON bound found for location: " << Key << "\n";
-        return false;
-      };
-
-      // Primary: the loop's start location (from !llvm.loop metadata) lines up
-      // with the plugin's recorded line. Fall back to the header's first
-      // non-PHI instruction for loops lacking loop-start debug info.
-      if (!TryJSONLookup(L->getStartLoc())) {
-        for (const Instruction &I : *BB) {
-          if (!isa<PHINode>(I)) {
-            TryJSONLookup(I.getDebugLoc());
-            break; // Only check the first non-PHI instruction
+      unsigned BestLine = 0;
+      unsigned BestBound = 0;
+      for (MachineBasicBlock *MB : ML->getBlocks()) {
+        if (MLI.getLoopFor(MB) != ML)
+          continue; // skip blocks owned by a nested sub-loop
+        for (const MachineInstr &MI : *MB) {
+          const DebugLoc &DL = MI.getDebugLoc();
+          if (!DL)
+            continue;
+          StringRef Base = sys::path::filename(DL->getFilename());
+          std::string Key = (Base + ":" + std::to_string(DL->getLine())).str();
+          auto It = JSONBoundsByLocation.find(Key);
+          if (It == JSONBoundsByLocation.end())
+            continue;
+          if (BestLine == 0 || DL->getLine() < BestLine) {
+            BestLine = DL->getLine();
+            BestBound = It->second;
           }
         }
       }
-    }
-
-    // Last resort: fall back to the pessimistic SCEV max-BTC bound only when
-    // neither an exact SCEV trip count nor a JSON bound was available.
-    if (TripCount == 0 && MaxBTCTripCount > 0) {
-      TripCount = MaxBTCTripCount;
-      if (DebugPrints)
-        outs() << "    - Using max-BTC fallback trip count: " << TripCount
-               << "\n";
+      if (BestBound > 0) {
+        TripCount = BestBound;
+        if (DebugPrints)
+          outs() << "    - Got trip count from JSON (machine-block scan): "
+                 << TripCount << " (line " << BestLine << ")\n";
+      }
     }
 
     if (TripCount > 0) {
       LoopBounds[Header] = TripCount;
-      LLVM_DEBUG(dbgs() << "Loop bound for MBB " << Header->getNumber()
-                        << " (IR " << BB->getName() << "): " << TripCount
-                        << "\n");
+      LLVM_DEBUG(dbgs() << "Loop bound for MBB " << Header->getNumber() << " ("
+                        << Header->getName() << "): " << TripCount << "\n");
     }
   }
 

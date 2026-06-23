@@ -31,7 +31,7 @@
     "fft1":          { "expected": null, "status": "crash",        "note": "LLVM opt instcombine 'did not reach a fixpoint' on this float kernel." },
     "fir":           { "expected": null, "status": "build-fail",   "note": "RAM overflow: in_data[701] + out_data[720] longs exceed MSP430 RAM." },
     "insertsort":    { "expected": 1928 },
-    "janne_complex": { "expected": null, "status": "analyze-fail", "note": "complex() is called once and is wired correctly, so the call/return matching fix does not apply here. The OUTER while(a<30) loop header is not marked with its pragma bound (only the inner while got [1,9]) -> outer loop unconstrained -> ILP unbounded. Separate loop-bound-detection issue." },
+    "janne_complex": { "expected": 3417, "status": "unsound", "note": "Outer while(a<30) bound (11) is now applied: after loop-rotation+ISel its machine-loop header maps to IR block 'entry' (LoopInfo reports no IR loop), so the clean-IR/SCEV path dropped it -> unbounded. The MachineLoopBoundAgregatorPass machine-block pragma fallback now matches the bound against the loop's own machine blocks (inner still 9). UNSOUND: b*3 lowers to a body-less __mspabi_mpyi (i16 multiply), costed as 0." },
     "jfdctint":      { "expected": 6556 },
     "lms":           { "expected": 6436640, "status": "unsound", "note": "Bonus: this soft-float kernel shared the multi-call unboundedness; the call/return matching constraints now bound it. UNSOUND: soft-float __mspabi_* routines are body-less and costed as 0." },
     "ludcmp":        { "expected": null, "status": "build-fail",   "note": "FIXUP binary-grep fixed (grep -a); now fails at a later build step (no .elf produced)." },
