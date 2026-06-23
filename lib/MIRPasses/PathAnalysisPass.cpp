@@ -138,7 +138,13 @@ bool PathAnalysisPass::doFinalization(Module &M) {
       }
     }
   } else {
-    outs() << "Failed to compute WCET.\n";
+    // Keep the literal "Failed to compute WCET." prefix (the regression harness
+    // keys off the absence of the WCET line); append the solver's model status
+    // when known so the failure mode (e.g. Infeasible / Unbounded) is visible.
+    outs() << "Failed to compute WCET.";
+    if (!Result.Status.empty())
+      outs() << " (solver status: " << Result.Status << ")";
+    outs() << "\n";
     return false;
   }
 

@@ -212,11 +212,17 @@ void WorklistSolver::initializeGraph(const ProgramGraph &PG) {
       }
     }
   }
+  // Carry call sites into the ASG so the ILP can add context-sensitive
+  // call/return matching constraints. Only sites with a wired return landing
+  // whose endpoints survived reachability pruning are kept; the ASG stores the
+  // landing as ReturnNodeId (the block control returns to after the call).
   for (const auto &CS : PG.CallSites) {
-    (void)CS; // Suppress unused variable warning
-    // Note: Call site edges are already in PG (finalized).
-    // If we need to populate ASG.CallSites for inter-procedural splicing,
-    // we would map CS.first to an ASG node ID here.
+    if (!CS.HasLanding)
+      continue;
+    if (!PGToASGMap.count(CS.CallNode) || !PGToASGMap.count(CS.LandingNode))
+      continue;
+    Graph.CallSites.push_back(
+        {PGToASGMap[CS.CallNode], PGToASGMap[CS.LandingNode], CS.Callee});
   }
 
   // Worklist: Add all entries

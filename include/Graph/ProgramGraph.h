@@ -261,9 +261,23 @@ public:
   std::map<const Function *, std::vector<unsigned>> FunctionToReturnNodesMap;
 
   /**
-   * Store call sites: map from caller node to callee Function.
+   * A captured call site: the caller's node, the callee Function, and the node
+   * of the return-landing block (the caller block's continuation successor,
+   * which CallSplitterPass placed immediately after the call). HasLanding is
+   * false when the call has no continuation successor (e.g. a noreturn or tail
+   * call), in which case finalize() wires no return edge.
    */
-  std::vector<std::pair<unsigned, const Function *>> CallSites;
+  struct CallSite {
+    unsigned CallNode;
+    const Function *Callee;
+    unsigned LandingNode;
+    bool HasLanding;
+  };
+
+  /**
+   * Store call sites for wiring call and return edges in finalize().
+   */
+  std::vector<CallSite> CallSites;
 
   /**
    * Call sites to backend-synthesized libcalls (MO_ExternalSymbol, e.g.

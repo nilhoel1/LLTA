@@ -382,7 +382,21 @@ bool ProgramGraph::fillGraphWithFunction(
           const auto *Callee = dyn_cast<Function>(GV);
           if (Callee) {
             unsigned CallNode = MBBToNodeMap[&MBB];
-            CallSites.push_back({CallNode, Callee});
+            // The return lands in the call block's continuation successor (the
+            // block CallSplitterPass placed right after the call). Capture its
+            // node now rather than guessing CallNode+1 in finalize(): node IDs
+            // follow MBB-layout order, so CallNode+1 is only the landing block
+            // by accident and points into the next function when the call is
+            // the last block in this function's layout.
+            const MachineBasicBlock *Landing =
+                MBB.succ_size() == 1 ? *MBB.succ_begin() : MBB.getFallThrough();
+            unsigned LandingNode = 0;
+            bool HasLanding = false;
+            if (Landing && MBBToNodeMap.count(Landing)) {
+              LandingNode = MBBToNodeMap[Landing];
+              HasLanding = true;
+            }
+            CallSites.push_back({CallNode, Callee, LandingNode, HasLanding});
           }
         } else if (MI.getOperand(0).getType() ==
                    llvm::MachineOperand::MO_ExternalSymbol) {
@@ -441,7 +455,7 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
   };
 
   // Process all captured call sites
-  for (const auto &[CallNode, Callee] : CallSites) {
+  for (const auto &[CallNode, Callee, LandingNode, HasLanding] : CallSites) {
     // Never wire calls *into* the start function. It is the analysis boundary:
     // it is entered only via the synthetic Entry node and left only via the
     // synthetic Exit node. Wiring such a call site (an external caller of the
@@ -455,12 +469,14 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
       unsigned CaleeNode = FunctionToEntryNodeMap[Callee];
       addEdge(CallNode, CaleeNode);
 
-      if (FunctionToReturnNodesMap.find(Callee) !=
-          FunctionToReturnNodesMap.end()) {
-        for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee]) {
-          // FIXME I think this is not ideal...
-          addEdge(ReturnNode, CallNode + 1);
-        }
+      // Wire each of the callee's return blocks back to this call site's
+      // return-landing block (captured at call detection). A call with no
+      // continuation successor (HasLanding == false, e.g. a noreturn call) gets
+      // no return edge.
+      if (HasLanding && FunctionToReturnNodesMap.find(Callee) !=
+                            FunctionToReturnNodesMap.end()) {
+        for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee])
+          addEdge(ReturnNode, LandingNode);
       }
     } else if (Callee->isDeclaration()) {
       // Declared-but-undefined function whose body is not in the analyzed IR

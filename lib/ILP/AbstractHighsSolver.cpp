@@ -75,6 +75,12 @@ AbstractHighsSolver::solveWCET(const AbstractStateGraph &ASG) {
   // later. If we want to add rows easily, maybe we should use `highs.addRow`.
   // Let's pass the columns first, then add rows.
 
+  // Execution counts and edge flows are integral (IPET). Solve a MILP, not the
+  // LP relaxation: the loop-bound rows (Bound-1)*x_h - Bound*backedge >= 0 are
+  // not unimodular, so the relaxation can have fractional optima (which surface
+  // as float objectives and numerically unstable results).
+  model.lp_.integrality_.assign(model.lp_.num_col_, HighsVarType::kInteger);
+
   highs.passModel(model);
 
   // Flow Conservation
@@ -151,11 +157,52 @@ AbstractHighsSolver::solveWCET(const AbstractStateGraph &ASG) {
     }
   }
 
+  // Context-sensitive call/return matching. Flow entering a callee from call
+  // site i must return to call site i's landing block:
+  //   flow(CallNode -> entry) - Sum_r flow(return_r -> landing) == 0
+  // Without it, a callee called from N sites has its return edges merged to
+  // every landing, forming spurious inter-procedural cycles that no loop bound
+  // constrains, which makes the maximize objective unbounded.
+  for (const auto &CS : ASG.CallSites) {
+    auto EntryIt = ASG.FunctionEntries.find(CS.Callee);
+    if (EntryIt == ASG.FunctionEntries.end())
+      continue;
+    auto CallEdge = EdgeCols.find({CS.CallNodeId, EntryIt->second});
+    if (CallEdge == EdgeCols.end())
+      continue;
+
+    std::vector<int> inds;
+    std::vector<double> vals;
+    inds.push_back(CallEdge->second);
+    vals.push_back(1.0);
+
+    auto RetIt = ASG.FunctionReturns.find(CS.Callee);
+    if (RetIt != ASG.FunctionReturns.end()) {
+      for (unsigned R : RetIt->second) {
+        auto RetEdge = EdgeCols.find({R, CS.ReturnNodeId});
+        if (RetEdge != EdgeCols.end()) {
+          inds.push_back(RetEdge->second);
+          vals.push_back(-1.0);
+        }
+      }
+    }
+
+    // Only emit when at least one return edge exists; otherwise the row would
+    // wrongly force the call edge to zero.
+    if (inds.size() > 1)
+      highs.addRow(0.0, 0.0, inds.size(), inds.data(), vals.data());
+  }
+
   // Solve
   highs.run();
 
-  if (highs.getModelStatus() == HighsModelStatus::kOptimal) {
+  HighsModelStatus ModelStatus = highs.getModelStatus();
+  if (ModelStatus == HighsModelStatus::kOptimal) {
     Result.WCET = highs.getObjectiveValue();
+  } else {
+    // Record why no WCET was produced (e.g. kInfeasible / kUnbounded) so the
+    // failure is diagnosable rather than a silent WCET <= 0.
+    Result.Status = highs.modelStatusToString(ModelStatus);
   }
 
 #else

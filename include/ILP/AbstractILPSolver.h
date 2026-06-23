@@ -3,6 +3,7 @@
 
 #include "Analysis/AbstractStateGraph.h"
 #include <map>
+#include <string>
 #include <vector>
 
 namespace llvm {
@@ -12,6 +13,10 @@ struct AbstractILPResult {
   std::vector<unsigned>
       WorstCasePath; // Sequence of Node IDs (AbstractStateGraph Node IDs)
   std::map<unsigned, double> ExecutionCounts;
+  // Solver model status when no optimal solution was produced (e.g.
+  // "Infeasible", "Unbounded"). Empty on success. Surfaced by PathAnalysisPass
+  // to make a failed solve diagnosable instead of a silent WCET <= 0.
+  std::string Status;
 };
 
 class AbstractILPSolver {

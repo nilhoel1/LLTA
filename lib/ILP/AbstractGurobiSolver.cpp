@@ -63,14 +63,10 @@ AbstractGurobiSolver::solveWCET(const AbstractStateGraph &ASG) {
     double Obj = Node->Cost;
     double Lb = 0.0;
     double Ub = GRB_INFINITY;
-    char VType = GRB_CONTINUOUS; // Or INTEGER? Abstract states maybe continuous
-                                 // flow? WCET usually integer counts but
-                                 // continuous is relaxation.
-    // Let's use CONTINUOUS for now as it's faster and often sufficient for
-    // flow, or INTEGER if we want exact counts. Existing GurobiSolver uses
-    // INTEGER. Let's use CONTINUOUS for speed unless required. Actually,
-    // execution counts should be effectively integer. Let's use CONTINUOUS for
-    // now.
+    // Execution counts are integral (IPET). Solve a MILP, not the LP
+    // relaxation: the non-unimodular loop-bound rows can otherwise yield
+    // fractional optima.
+    char VType = GRB_INTEGER;
 
     Error =
         GRBaddvar(Model, 0, nullptr, nullptr, Obj, Lb, Ub, VType, Name.c_str());
@@ -99,7 +95,7 @@ AbstractGurobiSolver::solveWCET(const AbstractStateGraph &ASG) {
       double Obj = 0.0;
 
       Error = GRBaddvar(Model, 0, nullptr, nullptr, Obj, 0.0, GRB_INFINITY,
-                        GRB_CONTINUOUS, Name.c_str());
+                        GRB_INTEGER, Name.c_str());
       if (Error)
         break;
     }
@@ -210,6 +206,45 @@ AbstractGurobiSolver::solveWCET(const AbstractStateGraph &ASG) {
     }
   }
 
+  // Context-sensitive call/return matching. Flow entering a callee from call
+  // site i must return to call site i's landing block:
+  //   flow(CallNode -> entry) - Sum_r flow(return_r -> landing) == 0
+  // Without it, a callee called from N sites has its return edges merged to
+  // every landing, forming spurious inter-procedural cycles that no loop bound
+  // constrains, which makes the maximize objective unbounded.
+  for (const auto &CS : ASG.CallSites) {
+    auto EntryIt = ASG.FunctionEntries.find(CS.Callee);
+    if (EntryIt == ASG.FunctionEntries.end())
+      continue;
+    auto CallEdge = EdgeToVarIdx.find({CS.CallNodeId, EntryIt->second});
+    if (CallEdge == EdgeToVarIdx.end())
+      continue;
+
+    std::vector<int> Ind;
+    std::vector<double> Val;
+    Ind.push_back(CallEdge->second);
+    Val.push_back(1.0);
+
+    auto RetIt = ASG.FunctionReturns.find(CS.Callee);
+    if (RetIt != ASG.FunctionReturns.end()) {
+      for (unsigned R : RetIt->second) {
+        auto RetEdge = EdgeToVarIdx.find({R, CS.ReturnNodeId});
+        if (RetEdge != EdgeToVarIdx.end()) {
+          Ind.push_back(RetEdge->second);
+          Val.push_back(-1.0);
+        }
+      }
+    }
+
+    // Only emit when at least one return edge exists; otherwise the row would
+    // wrongly force the call edge to zero.
+    if (Ind.size() > 1) {
+      std::string Name = "CallRet_" + std::to_string(CS.CallNodeId);
+      GRBaddconstr(Model, Ind.size(), Ind.data(), Val.data(), GRB_EQUAL, 0.0,
+                   Name.c_str());
+    }
+  }
+
   // Optimize
   GRBoptimize(Model);
 
@@ -230,6 +265,7 @@ AbstractGurobiSolver::solveWCET(const AbstractStateGraph &ASG) {
     }
   } else {
     errs() << "Gurobi optimization failed with status " << Status << "\n";
+    Result.Status = "Gurobi status " + std::to_string(Status);
   }
 
   GRBfreemodel(Model);
