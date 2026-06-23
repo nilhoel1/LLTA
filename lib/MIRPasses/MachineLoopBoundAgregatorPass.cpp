@@ -170,6 +170,12 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
     }
 
     unsigned TripCount = 0;
+    // The loose SCEV max-backedge-taken count (pessimistic: the index type's
+    // maximum for loops SCEV cannot bound) is computed in the clean-IR path
+    // below but applied only as the very last resort -- after BOTH the
+    // start-location JSON lookup and the machine-block JSON scan. Declared here
+    // so it survives the CleanIRLoop scope.
+    unsigned MaxBTCTripCount = 0;
 
     if (CleanIRLoop) {
       // First try to get trip count from SCEV.
@@ -186,7 +192,6 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
       // type's maximum (e.g. 32766 on a 16-bit target). Compute it here but do
       // NOT let it shadow a tight JSON pragma bound -- it is applied only as a
       // last resort, after the JSON lookup below.
-      unsigned MaxBTCTripCount = 0;
       if (TripCount == 0) {
         const SCEV *MaxBTC = SE.getConstantMaxBackedgeTakenCount(L);
         if (DebugPrints)
@@ -239,15 +244,6 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
           }
         }
       }
-
-      // Last resort: fall back to the pessimistic SCEV max-BTC bound only when
-      // neither an exact SCEV trip count nor a JSON bound was available.
-      if (TripCount == 0 && MaxBTCTripCount > 0) {
-        TripCount = MaxBTCTripCount;
-        if (DebugPrints)
-          outs() << "    - Using max-BTC fallback trip count: " << TripCount
-                 << "\n";
-      }
     }
 
     // Machine-block pragma fallback. Reached when no clean IR loop was
@@ -287,6 +283,20 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
           outs() << "    - Got trip count from JSON (machine-block scan): "
                  << TripCount << " (line " << BestLine << ")\n";
       }
+    }
+
+    // Absolute last resort: the pessimistic SCEV max-BTC bound, applied only
+    // when neither an exact SCEV trip count, a start-location JSON match, nor
+    // the machine-block JSON scan produced a (tighter) bound. The loose max-BTC
+    // must never shadow a JSON pragma -- including one matched via the
+    // machine-block scan (e.g. a goto-formed loop whose header start-location
+    // resolves to the pre-header line rather than the annotated statement, so
+    // only the machine-block scan finds the pragma).
+    if (TripCount == 0 && MaxBTCTripCount > 0) {
+      TripCount = MaxBTCTripCount;
+      if (DebugPrints)
+        outs() << "    - Using max-BTC fallback trip count: " << TripCount
+               << "\n";
     }
 
     if (TripCount > 0) {

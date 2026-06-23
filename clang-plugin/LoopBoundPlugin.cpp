@@ -16,9 +16,9 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
 #include "clang/Sema/Sema.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/JSON.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/JSON.h"
+#include "llvm/Support/raw_ostream.h"
 #include <map>
 #include <vector>
 
@@ -67,7 +67,8 @@ public:
       if (VerboseOutput)
         llvm::errs() << "[LoopBoundPlugin] Created new LoopBoundsToExport\n";
     }
-  }  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+  }
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &PragmaTok) override {
     SourceLocation PragmaLoc = PragmaTok.getLocation();
     if (VerboseOutput)
@@ -145,7 +146,8 @@ public:
       // Silently consume extra tokens
     }
 
-    // Store the bound information keyed by the file offset of the pragma location
+    // Store the bound information keyed by the file offset of the pragma
+    // location
     SourceManager &SM = PP.getSourceManager();
     unsigned Offset = SM.getFileOffset(PragmaLoc);
 
@@ -155,23 +157,24 @@ public:
     (*LoopBoundMap)[Offset] = Info;
 
     if (VerboseOutput) {
-      llvm::errs() << "[LoopBoundPlugin] Stored loop_bound pragma at offset " << Offset
-                   << " with lower: " << LowerBound
+      llvm::errs() << "[LoopBoundPlugin] Stored loop_bound pragma at offset "
+                   << Offset << " with lower: " << LowerBound
                    << ", upper: " << UpperBound << "\n";
       llvm::errs().flush();
     }
   }
-
 };
 
 // AST visitor to attach loop metadata
 class LoopBoundVisitor : public RecursiveASTVisitor<LoopBoundVisitor> {
 public:
   explicit LoopBoundVisitor(ASTContext &Context, Sema *S)
-      : Context(Context), SemaPtr(S) {}  bool VisitForStmt(ForStmt *S) {
+      : Context(Context), SemaPtr(S) {}
+  bool VisitForStmt(ForStmt *S) {
     if (VerboseOutput)
       llvm::errs() << "[LoopBoundPlugin] Found for loop at "
-                   << S->getBeginLoc().printToString(Context.getSourceManager()) << "\n";
+                   << S->getBeginLoc().printToString(Context.getSourceManager())
+                   << "\n";
     ProcessLoop(S, S->getBeginLoc());
     return true;
   }
@@ -186,8 +189,63 @@ public:
     return true;
   }
 
+  // Collect labels and gotos so a post-traversal pass can recognize
+  // backward-goto-formed loops (which are not For/While/Do statements).
+  bool VisitLabelStmt(LabelStmt *L) {
+    Labels.push_back(L);
+    return true;
+  }
+
+  bool VisitGotoStmt(GotoStmt *G) {
+    Gotos.push_back(G);
+    return true;
+  }
+
+  // Treat any label targeted by a *backward* goto (a goto whose source location
+  // follows the label) as a loop header, and apply a nearby #pragma loop_bound
+  // to it. Run after the AST traversal so all labels and gotos are collected.
+  void ProcessGotoLoops() {
+    if (!LoopBoundMap)
+      return;
+
+    SourceManager &SM = Context.getSourceManager();
+    for (LabelStmt *L : Labels) {
+      const LabelDecl *D = L->getDecl();
+      unsigned LabelOffset = SM.getFileOffset(L->getBeginLoc());
+
+      // A label forms a loop header if some goto targeting it sits lexically
+      // after it (a backward branch).
+      bool IsLoopHeader = false;
+      for (GotoStmt *G : Gotos) {
+        if (G->getLabel() != D)
+          continue;
+        if (SM.getFileOffset(G->getGotoLoc()) > LabelOffset) {
+          IsLoopHeader = true;
+          break;
+        }
+      }
+      if (!IsLoopHeader)
+        continue;
+
+      if (VerboseOutput)
+        llvm::errs() << "[LoopBoundPlugin] Found goto loop at label '"
+                     << D->getName() << "' "
+                     << L->getBeginLoc().printToString(SM) << "\n";
+
+      // Match a preceding pragma against the label location, but export the
+      // bound at the labeled statement's first line -- that is where the loop
+      // header's first instruction debug location lands in the IR, which is
+      // what the MIR loop-bound matcher keys on (the label line itself carries
+      // no real instruction).
+      SourceLocation ExportLoc =
+          L->getSubStmt() ? L->getSubStmt()->getBeginLoc() : L->getBeginLoc();
+      ProcessLoop(L, L->getBeginLoc(), ExportLoc);
+    }
+  }
+
 private:
-  void ProcessLoop(Stmt *S, SourceLocation Loc) {
+  void ProcessLoop(Stmt *S, SourceLocation Loc,
+                   SourceLocation ExportLoc = SourceLocation()) {
     if (!LoopBoundMap)
       return;
 
@@ -216,24 +274,27 @@ private:
 
     if (BoundInfo) {
       if (VerboseOutput) {
-        llvm::errs() << "[LoopBoundPlugin] Attaching loop bounds (lower: " << BoundInfo->LowerBound
+        llvm::errs() << "[LoopBoundPlugin] Attaching loop bounds (lower: "
+                     << BoundInfo->LowerBound
                      << ", upper: " << BoundInfo->UpperBound << ") to loop at "
                      << Loc.printToString(SM) << "\n";
         llvm::errs().flush();
       }
 
       // Create loop attributes using Clang's attribute mechanism
-      // We'll use the loop hint attributes that Clang already supports
-      AttachLoopMetadata(S, BoundInfo->LowerBound, BoundInfo->UpperBound);
+      // We'll use the loop hint attributes that Clang already supports. Export
+      // at ExportLoc when supplied (goto loops key on the labeled statement),
+      // otherwise at the loop statement's own location.
+      AttachLoopMetadata(BoundInfo->LowerBound, BoundInfo->UpperBound,
+                         ExportLoc.isValid() ? ExportLoc : Loc);
 
       // Remove the pragma from the map so it's not reused
       LoopBoundMap->erase(BestOffset);
     }
   }
 
-  void AttachLoopMetadata(Stmt *S, unsigned Lower, unsigned Upper) {
+  void AttachLoopMetadata(unsigned Lower, unsigned Upper, SourceLocation Loc) {
     // Export loop bounds to JSON file for consumption by LLVM IR pass
-    SourceLocation Loc = S->getBeginLoc();
     SourceManager &SM = Context.getSourceManager();
 
     if (VerboseOutput) {
@@ -256,6 +317,8 @@ private:
 
   ASTContext &Context;
   Sema *SemaPtr;
+  std::vector<LabelStmt *> Labels;
+  std::vector<GotoStmt *> Gotos;
 };
 
 class LoopBoundASTConsumer : public ASTConsumer {
@@ -269,6 +332,10 @@ public:
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
     if (VerboseOutput)
       llvm::errs() << "[LoopBoundPlugin] AST traversal complete\n";
+
+    // Recognize backward-goto-formed loops after traversal (all labels/gotos
+    // are now collected); normal for/while/do pragmas were consumed inline.
+    Visitor.ProcessGotoLoops();
 
     // Export loop bounds to JSON file
     ExportLoopBoundsJSON(Context);
@@ -318,8 +385,9 @@ public:
     OutFile.close();
 
     if (VerboseOutput)
-      llvm::errs() << "[LoopBoundPlugin] Exported " << LoopBoundsToExport->size()
-                   << " loop bounds to " << OutputFileName << "\n";
+      llvm::errs() << "[LoopBoundPlugin] Exported "
+                   << LoopBoundsToExport->size() << " loop bounds to "
+                   << OutputFileName << "\n";
   }
 
 private:
@@ -329,14 +397,16 @@ private:
 class LoopBoundPluginAction : public PluginASTAction {
 public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                   StringRef) override {
+                                                 StringRef) override {
     if (VerboseOutput)
-      llvm::errs() << "[LoopBoundPlugin] Plugin action CreateASTConsumer called\n";
+      llvm::errs()
+          << "[LoopBoundPlugin] Plugin action CreateASTConsumer called\n";
     // Register the pragma handler
     Preprocessor &PP = CI.getPreprocessor();
     PP.AddPragmaHandler(new LoopBoundPragmaHandler());
     if (VerboseOutput)
-      llvm::errs() << "[LoopBoundPlugin] Pragma handler added to preprocessor\n";
+      llvm::errs()
+          << "[LoopBoundPlugin] Pragma handler added to preprocessor\n";
     // Pass nullptr for Sema since we don't need it anymore
     return std::make_unique<LoopBoundASTConsumer>(CI.getASTContext(), nullptr);
   }
@@ -347,23 +417,25 @@ public:
       if (arg == "verbose" || arg == "-v") {
         VerboseOutput = true;
       } else if (arg == "help" || arg == "-h") {
-        llvm::errs() << "LoopBoundPlugin usage:\n"
-                     << "  -plugin-arg-loop-bound verbose  Enable verbose output\n"
-                     << "  -plugin-arg-loop-bound help     Show this help\n";
+        llvm::errs()
+            << "LoopBoundPlugin usage:\n"
+            << "  -plugin-arg-loop-bound verbose  Enable verbose output\n"
+            << "  -plugin-arg-loop-bound help     Show this help\n";
       }
     }
     if (VerboseOutput)
-      llvm::errs() << "[LoopBoundPlugin] ParseArgs called with verbose output enabled\n";
+      llvm::errs()
+          << "[LoopBoundPlugin] ParseArgs called with verbose output enabled\n";
     return true;
   }
-};} // namespace
+};
+} // namespace
 
 static FrontendPluginRegistry::Add<LoopBoundPluginAction>
     X("loop-bound", "Parse loop bound pragmas and emit metadata");
 
 // Add module initialization to verify the plugin is loaded
-__attribute__((constructor))
-static void InitPlugin() {
+__attribute__((constructor)) static void InitPlugin() {
   if (VerboseOutput)
     llvm::errs() << "[LoopBoundPlugin] Plugin module loaded!\n";
 }

@@ -307,6 +307,7 @@ void compress(void)
          disp = 1;
       }
 
+#pragma loop_bound(0, 111)
 probe:
 
       if ( (i -= disp) < 0 ) {  /* apsim_loop 111 11 */
