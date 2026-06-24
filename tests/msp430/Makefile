@@ -70,10 +70,15 @@ $(BUILD_DIR)/$(TEST).S: $(BUILD_DIR)/$(TEST).opt.ll
 	@echo "LLTA-LLC $< -> $@"
 	@$(IR_TOOLCHAIN)/llta -llc $(LLCFLAGS) $< -o $@
 	@echo "FIXUP    $@"
-	@sed 's/call[ 	]*#/call /g' $@ > $@.tmp && mv $@.tmp $@
-	@grep -a -v '^[ 	]*\.cfi' $@ > $@.tmp && mv $@.tmp $@
-	@grep -a -v '^[ 	]*\.file' $@ > $@.tmp && mv $@.tmp $@
-	@grep -a -v '^[ 	]*\.loc' $@ > $@.tmp && mv $@.tmp $@
+	@# LC_ALL=C is portable across Linux (GNU) and macOS (BSD): it forces a
+	@# byte-wise locale so sed/grep do not abort with "illegal byte sequence"
+	@# on the non-UTF-8 bytes that can appear in the generated .S (e.g. soft-
+	@# float kernels). The patterns here are pure ASCII, so byte semantics are
+	@# correct on both platforms -- no per-OS branch needed.
+	@LC_ALL=C sed 's/call[ 	]*#/call /g' $@ > $@.tmp && mv $@.tmp $@
+	@LC_ALL=C grep -a -v '^[ 	]*\.cfi' $@ > $@.tmp && mv $@.tmp $@
+	@LC_ALL=C grep -a -v '^[ 	]*\.file' $@ > $@.tmp && mv $@.tmp $@
+	@LC_ALL=C grep -a -v '^[ 	]*\.loc' $@ > $@.tmp && mv $@.tmp $@
 
 # 4. Assemble to Object (using GCC)
 $(BUILD_DIR)/$(TEST).o: $(BUILD_DIR)/$(TEST).S

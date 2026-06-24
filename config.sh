@@ -122,6 +122,37 @@ build_all() {
   cd ..
 }
 
+test_suite() {
+  if [ ! -d "build" ]; then
+    echo "No build folder found! Run 'config' first."
+    exit 1
+  fi
+  # Build llta (needed by the .ll/regression suites) and the C++ unit tests.
+  cd build
+  $BUILD_COMMAND clang-resource-headers
+  $BUILD_COMMAND llta LoopBoundPlugin \
+    LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests
+  cd ..
+
+  echo ""
+  echo "=== C++ unit tests ==="
+  RC=0
+  for T in LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests; do
+    echo "--- ${T} ---"
+    "${SCRIPT_DIR}/build/bin/${T}" || RC=1
+  done
+
+  echo ""
+  echo "=== CFG/ILP integration suite ==="
+  python3 "${SCRIPT_DIR}/tests/cfg_test.py" || RC=1
+
+  echo ""
+  echo "=== Maelardalen regression suite ==="
+  python3 "${SCRIPT_DIR}/tests/regression_test.py" || RC=1
+
+  exit $RC
+}
+
 clean() {
   echo "Cleaning build artifacts..."
   rm -rf build
@@ -155,6 +186,9 @@ build | b)
 buildall | build-all | ba)
   build_all
   ;;
+test | t)
+  test_suite
+  ;;
 clean)
   clean
   ;;
@@ -171,6 +205,7 @@ mrproper | distclean)
   echo "  c | config                 Configure for Development (auto-downloads if needed)."
   echo "  b | build                  Build the llta target."
   echo "  ba| build-all              Build all targets."
+  echo "  t | test                   Build + run unit tests, CFG/ILP suite, and regression suite."
   echo "  clean                      Remove build artifacts."
   echo "  mrproper | distclean       Deep clean (removes build + externalDeps)."
   exit

@@ -1,0 +1,60 @@
+{
+  "_comment": "Baselines for the CFG/ILP robustness suite (tests/cfg/*.c), run by tests/cfg_test.py. Each entry pins the observed outcome of one control-flow shape through the MSP430 toolchain. 'expected: <int>' pins a WCET; 'expected: null' records a documented gap that produces no WCET. See each .c file's header comment and the findings in the CFG/ILP robustness plan.",
+  "cfg": {
+    "multicall": {
+      "expected": 59,
+      "status": "ok",
+      "note": "Several calls in one source block: CallSplitterPass splits the block at each call and ProgramGraph wires every call/return pair."
+    },
+    "multiret": {
+      "expected": 29,
+      "status": "ok",
+      "note": "Callee with multiple return blocks; each isReturnBlock() is wired back to the caller's landing block."
+    },
+    "switchcase": {
+      "expected": 19,
+      "status": "ok",
+      "note": "Switch dispatch (jump table / branch chain): multi-successor blocks and a merge point."
+    },
+    "selfloop": {
+      "expected": 109,
+      "status": "ok",
+      "note": "Single pragma-bounded loop (volatile accumulator prevents closed-form folding); loop-bound row emitted, WCET finite."
+    },
+    "nestedloops": {
+      "expected": 361,
+      "status": "ok",
+      "note": "Nested loop plus a sibling loop, all pragma-bounded; loop-bound aggregation across nesting and multiple headers."
+    },
+    "noreturn": {
+      "expected": 12,
+      "status": "ok-unsound",
+      "note": "Call to a noreturn callee (exit): no return edge wired (HasLanding == false). exit is a body-less external callee, so the WCET is flagged UNSOUND but still produced."
+    },
+    "trivial": {
+      "expected": 9,
+      "status": "ok",
+      "note": "Minimal start function: single block, no loops or calls."
+    },
+    "indirect": {
+      "expected": 19,
+      "status": "gap-indirect-call",
+      "note": "GAP (finding #3): genuine indirect (function-pointer) call via a volatile-indexed table. The callee is NOT wired into the graph and its cost is omitted -- a silent under-approximation that is NOT flagged unsound. Pinned at the observed value; when indirect calls are modeled this will change (YELLOW -> refresh)."
+    },
+    "recursion_simple": {
+      "expected": null,
+      "status": "gap-recursion",
+      "note": "GAP (finding #5): self-recursion (fib). The ILP call/return matching binds each recursive call to its return but imposes no depth limit, so the analyzer cannot bound the recursion: no WCET produced. Refresh if recursion depth is ever bounded."
+    },
+    "shiftloop": {
+      "expected": 24,
+      "status": "ok",
+      "note": "Multi-bit shift on a wide type. MSP430 has no barrel shifter, so the backend synthesizes a shift loop with no source pragma and no IR loop; the implicit loop-bound path (RTTarget::getImplicitLoopBound) bounds it. Same category that previously left compress/edn unbounded."
+    },
+    "gotoloop": {
+      "expected": 209,
+      "status": "ok",
+      "note": "Loop formed by a backward goto rather than for/while. Exercises the LoopBoundPlugin's backward-goto recognition (pragma JSON emitted) and the bound's application to the resulting machine loop."
+    }
+  }
+}
