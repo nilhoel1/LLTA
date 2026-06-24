@@ -332,6 +332,55 @@ static void testRecursionBounded() {
   CHECK(wcetEq(R.WCET, Expected));
 }
 
+// Bounded mutual recursion. At the ILP level a mutual-recursion SCC is a header
+// whose backedge is an inter-procedural call edge from another SCC member, so
+// the solver bounds it exactly like a loop. (ProgramGraph::finalize is what
+// detects the SCC, picks the header, and marks that call edge as the backedge;
+// the inter-procedural graph WIRING is covered end-to-end by the cfg suite's
+// mutual_recursion* tests.) Here AE models cycle-entry function a's entry
+// (header, bound B) and BB the other function b's body on the cycle; b's call
+// back to a (BB->AE) is the marked backedge. Counts: AE=B, BB=B-1.
+static void testMutualRecursionBounded() {
+  const unsigned Ca = 10, Cb = 7, B = 4;
+  AbstractStateGraph G;
+  unsigned E = addNode(G, 0, true);
+  unsigned AE = addNode(G, Ca);
+  unsigned BB = addNode(G, Cb);
+  unsigned X = addNode(G, 0, false, true);
+  markLoopHeader(G, AE, B);
+  G.addEdge(E, AE);
+  G.addEdge(AE, BB);                // a -> b (forward)
+  G.addEdge(BB, AE, /*back=*/true); // b -> a (cycle backedge)
+  G.addEdge(AE, X);                 // a base case exits
+
+  AbstractHighsSolver S;
+  auto R = S.solveWCET(G);
+  CHECK(R.Status.empty());
+  CHECK(wcetEq(R.WCET, (long)Ca * B + (long)Cb * (B - 1))); // 40 + 21 = 61
+}
+
+// Safety boundary: the SAME mutual-recursion cycle WITHOUT a header bound is
+// unbounded, so the solver reports no WCET. When finalize fails to bound an SCC
+// (e.g. its header has no recursion_bound) this is the formulation it produces.
+static void testMutualRecursionUnboundedGap() {
+  AbstractStateGraph G;
+  unsigned E = addNode(G, 0, true);
+  unsigned AE = addNode(G, 10);
+  unsigned BB = addNode(G, 7);
+  unsigned X = addNode(G, 0, false, true);
+  G.addEdge(E, AE);
+  G.addEdge(AE, BB);
+  G.addEdge(BB, AE, /*back=*/true); // backedge present but AE not a header
+  G.addEdge(AE, X);
+
+  AbstractHighsSolver S;
+  auto R = S.solveWCET(G);
+  CHECK_GAP(
+      !R.Status.empty(),
+      "unbounded mutual-recursion cycle (no header bound) yields no WCET; "
+      "update when a header-less SCC is bounded");
+}
+
 #endif // ENABLE_HIGHS
 
 int main() {
@@ -344,6 +393,8 @@ int main() {
   testIrreducibleBounded();
   testUnboundedLoopGap();
   testRecursionBounded();
+  testMutualRecursionBounded();
+  testMutualRecursionUnboundedGap();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";

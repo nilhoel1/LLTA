@@ -15,9 +15,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <functional>
 #include <map>
 #include <memory>
 #include <set>
+#include <utility>
 #include <vector>
 
 namespace llvm {
@@ -475,6 +477,44 @@ void ProgramGraph::fillGraph(
   }
 }
 
+namespace {
+// DFS over the SCC-internal call edges starting from the given entry functions;
+// a call edge f->g where g is currently on the DFS stack (gray) is a
+// cycle-closing back edge. Returns the (caller, callee) back-edge pairs. This
+// is the call-graph lift of the retreating-edge scan used to bound irreducible
+// machine loops: the back edge's target becomes the cycle "header".
+std::set<std::pair<const Function *, const Function *>> findSCCBackEdges(
+    const std::set<const Function *> &SCC,
+    const std::set<const Function *> &Entries,
+    const std::map<const Function *, std::set<const Function *>> &CallAdj) {
+  std::set<std::pair<const Function *, const Function *>> BackEdges;
+  std::map<const Function *, int> Color; // 0 white, 1 gray, 2 black
+  std::function<void(const Function *)> Dfs = [&](const Function *F) {
+    Color[F] = 1;
+    auto It = CallAdj.find(F);
+    if (It != CallAdj.end())
+      for (const Function *G : It->second) {
+        if (!SCC.count(G))
+          continue; // stay inside the SCC
+        if (Color[G] == 1)
+          BackEdges.insert({F, G});
+        else if (Color[G] == 0)
+          Dfs(G);
+      }
+    Color[F] = 2;
+  };
+  for (const Function *E : Entries)
+    if (Color[E] == 0)
+      Dfs(E);
+  // Members not reached from an external entry (should not happen for a
+  // reachable SCC) are still scanned so no cycle is missed.
+  for (const Function *M : SCC)
+    if (Color[M] == 0)
+      Dfs(M);
+  return BackEdges;
+}
+} // namespace
+
 bool ProgramGraph::finalize(
     MachineFunction &MF, MachineModuleInfo *MMI, const llta::RTTarget *Target,
     const std::map<std::string, unsigned> &RecursionBounds) {
@@ -502,7 +542,8 @@ bool ProgramGraph::finalize(
   // Recursion findings, collected by IR Function during wiring and filtered to
   // the reachable subgraph after pruning (so dead-code recursion does not
   // produce a spurious "unbounded" diagnostic when the live WCET is finite).
-  std::set<const Function *> BoundedSelfRec, UnboundedSelfRec, MutualRec;
+  std::set<const Function *> BoundedSelfRec, UnboundedSelfRec;
+  std::set<const Function *> BoundedMutual, UnboundedMutual;
 
   // Process all captured call sites
   for (const auto &[CallNode, Callee, LandingNode, HasLanding] : CallSites) {
@@ -563,11 +604,14 @@ bool ProgramGraph::finalize(
     }
   }
 
-  // Detect mutual recursion (multi-function call-graph cycles). Build the
-  // function-level call adjacency from the captured call sites, then flag any
-  // function F that calls some G != F where G can reach back to F. Such cycles
-  // are not bounded in this phase (only direct self-recursion is) -- report
-  // them so the unbounded ILP failure is diagnosable.
+  // Mutual recursion (multi-function call-graph cycles). Build the
+  // function-level call adjacency from the captured call sites, group cyclic
+  // members into SCCs, and bound each SCC like an irreducible loop: a DFS over
+  // the SCC's call edges from its external entry finds the cycle-closing back
+  // edges, and each back edge's target entry is marked as a loop header with
+  // that function's recursion_bound. The IPET loop-bound row then caps the
+  // header at B per external entry, and the other SCC members are bounded
+  // transitively by flow conservation.
   std::map<const Function *, std::set<const Function *>> CallAdj;
   for (const auto &CS : CallSites) {
     auto It = NodeToFunctionMap.find(CS.CallNode);
@@ -593,12 +637,70 @@ bool ProgramGraph::finalize(
     }
     return false;
   };
+
+  // Functions that participate in a multi-function cycle.
+  std::set<const Function *> InCycle;
   for (const auto &[Caller, Callees] : CallAdj)
     for (const Function *Callee : Callees)
       if (Caller != Callee && reaches(Callee, Caller)) {
-        MutualRec.insert(Caller);
-        MutualRec.insert(Callee);
+        InCycle.insert(Caller);
+        InCycle.insert(Callee);
       }
+
+  // Group cyclic functions into SCCs (f,g share an SCC iff each reaches the
+  // other), then bound each SCC.
+  std::set<const Function *> Assigned;
+  for (const Function *F : InCycle) {
+    if (Assigned.count(F))
+      continue;
+    std::set<const Function *> SCC{F};
+    for (const Function *G : InCycle)
+      if (G != F && reaches(F, G) && reaches(G, F))
+        SCC.insert(G);
+    Assigned.insert(SCC.begin(), SCC.end());
+
+    // External entries: SCC members called from outside the SCC, plus the start
+    // function if it is in the SCC (entered via the synthetic Entry node).
+    std::set<const Function *> Entries;
+    for (const auto &[Caller, Callees] : CallAdj)
+      for (const Function *Callee : Callees)
+        if (SCC.count(Callee) && !SCC.count(Caller))
+          Entries.insert(Callee);
+    if (SCC.count(StartFunction))
+      Entries.insert(StartFunction);
+
+    auto BackEdges = findSCCBackEdges(SCC, Entries, CallAdj);
+
+    // Every back edge's target is a cycle header; mark all call sites along it
+    // as backedges into the header entry. The SCC is bounded only if every
+    // header carries a recursion_bound.
+    bool AllHeadersBounded = !BackEdges.empty();
+    for (const auto &[FromFn, HeaderFn] : BackEdges) {
+      auto RB = RecursionBounds.find(HeaderFn->getName().str());
+      auto HEntry = FunctionToEntryNodeMap.find(HeaderFn);
+      if (RB == RecursionBounds.end() || RB->second == 0 ||
+          HEntry == FunctionToEntryNodeMap.end()) {
+        AllHeadersBounded = false;
+        continue;
+      }
+      for (const auto &CS : CallSites) {
+        if (CS.Callee != HeaderFn)
+          continue;
+        auto CIt = NodeToFunctionMap.find(CS.CallNode);
+        if (CIt == NodeToFunctionMap.end() || CIt->second != FromFn)
+          continue;
+        Node &H = Nodes.at(HEntry->second);
+        H.IsLoop = true;
+        H.UpperLoopBound = RB->second;
+        H.BackEdgePredecessors.insert(CS.CallNode);
+      }
+    }
+
+    if (AllHeadersBounded)
+      BoundedMutual.insert(SCC.begin(), SCC.end());
+    else
+      UnboundedMutual.insert(SCC.begin(), SCC.end());
+  }
 
   // Backend-synthesized libcalls (no IR Function): cost by symbol name.
   for (const auto &[CallNode, Name] : ExternalSymbolCallSites)
@@ -680,20 +782,34 @@ bool ProgramGraph::finalize(
           << "' is self-recursive but has no recursion_bound; its call cycle "
              "is UNBOUNDED (no WCET). Add #pragma recursion_bound(N).\n";
     }
-  std::set<std::string> ReachableMutual;
-  for (const Function *F : MutualRec)
-    if (Reachable(F))
-      ReachableMutual.insert(F->getName().str());
-  if (!ReachableMutual.empty()) {
-    MutualRecursionFunctions = ReachableMutual;
-    outs() << "RECURSION: mutual recursion detected among {";
+  auto namesReachable = [&](const std::set<const Function *> &S) {
+    std::set<std::string> R;
+    for (const Function *F : S)
+      if (Reachable(F))
+        R.insert(F->getName().str());
+    return R;
+  };
+  auto printSet = [&](const std::set<std::string> &Names) {
     bool First = true;
-    for (const auto &Name : ReachableMutual) {
+    for (const auto &Name : Names) {
       outs() << (First ? "" : ", ") << Name;
       First = false;
     }
-    outs() << "}; multi-function cycles are not bounded in this phase, so the "
-              "WCET is UNBOUNDED.\n";
+  };
+  std::set<std::string> BM = namesReachable(BoundedMutual);
+  if (!BM.empty()) {
+    BoundedRecursionFunctions.insert(BM.begin(), BM.end());
+    outs() << "RECURSION: bounded mutual-recursion SCC {";
+    printSet(BM);
+    outs() << "} via recursion_bound.\n";
+  }
+  std::set<std::string> UM = namesReachable(UnboundedMutual);
+  if (!UM.empty()) {
+    MutualRecursionFunctions = UM;
+    outs() << "RECURSION: mutual recursion among {";
+    printSet(UM);
+    outs() << "} is UNBOUNDED (a header has no recursion_bound), so no WCET. "
+              "Add #pragma recursion_bound(N) to the cycle's entry function.\n";
   }
 
   // outs() << "Printing Dot file \n";

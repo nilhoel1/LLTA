@@ -1,8 +1,8 @@
-/* Mutual recursion: ping() <-> pong() form a 2-function call-graph cycle.
- * Bounding multi-function SCCs is out of scope this phase (only direct
- * self-recursion is bounded), so even with recursion_bound pragmas the cycle is
- * UNBOUNDED and NO WCET is produced. finalize() reports the SCC ("RECURSION:
- * mutual recursion detected among {ping, pong}"). Documented expected failure. */
+/* Mutual recursion: ping() <-> pong() form a 2-function call-graph cycle,
+ * bounded via #pragma recursion_bound. main calls ping(n), so the SCC's
+ * external entry (header) is ping; a DFS over the cycle's call edges marks
+ * pong->ping as the backedge into ping's entry and caps it at ping's
+ * recursion_bound, with pong bounded transitively -> finite WCET. */
 volatile int n;
 
 int pong(int x);

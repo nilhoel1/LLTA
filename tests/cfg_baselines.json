@@ -57,9 +57,29 @@
       "note": "Self-recursion (fac) with NO recursion_bound: the recursive call edge forms an unbounded cycle, so NO WCET is produced (solver: infeasible-or-unbounded). finalize() reports 'RECURSION: ... has no recursion_bound; ... UNBOUNDED'. Turns YELLOW if unbounded self-recursion ever starts producing a WCET (which would be unsound)."
     },
     "mutual_recursion": {
+      "expected": 571,
+      "status": "ok-recursion",
+      "note": "Mutual recursion (ping<->pong), a 2-function call-graph cycle bounded via #pragma recursion_bound. main calls ping(n) (header=ping); a DFS over the SCC's call edges marks pong->ping as the backedge into ping's entry, capped at ping's bound (pong bounded transitively) -> finite WCET. Was expect-unbounded before mutual recursion was bounded."
+    },
+    "mutual_recursion_anka": {
+      "expected": 571,
+      "status": "ok-recursion",
+      "note": "The Maelardalen anka/kalle pattern, made reachable (main calls kalle(n)). Header=kalle; anka->kalle is the cycle backedge. Verifies the same pattern that is dead code in srcMaelardalen/recursion.c now bounds when on the analysis path."
+    },
+    "mutual_recursion3": {
+      "expected": 641,
+      "status": "ok-recursion",
+      "note": "Three-function cycle a->b->c->a bounded via #pragma recursion_bound. main calls a(n) (header=a); the DFS finds c->a as the backedge. Verifies back-edge detection beyond a 2-node cycle."
+    },
+    "mutual_recursion_loop": {
+      "expected": 1211,
+      "status": "ok-recursion",
+      "note": "Mutual recursion (ping<->pong) invoked from a pragma-bounded loop in main. The header bound multiplies by the loop's external-entry count (IPET row caps header at B*non-backedge-inflow), which a flat x<=B cap would get wrong. Verifies external-entry scaling."
+    },
+    "mutual_recursion_unbounded": {
       "expected": null,
       "status": "expect-unbounded",
-      "note": "Mutual recursion (ping<->pong), a 2-function call-graph cycle. Bounding multi-function SCCs is out of scope this phase, so the cycle is unbounded and NO WCET is produced even with recursion_bound pragmas. finalize() reports 'RECURSION: mutual recursion detected among {ping, pong}'. Refresh when mutual recursion is bounded."
+      "note": "Negative case: 2-function cycle up<->down where the header up() (called from main) has NO recursion_bound, so the cycle is UNBOUNDED and NO WCET is produced -- a non-header bound on down() does not rescue it. finalize() reports 'RECURSION: mutual recursion among {down, up} is UNBOUNDED'. Guards the safety boundary."
     },
     "shiftloop": {
       "expected": 24,
