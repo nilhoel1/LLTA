@@ -275,6 +275,43 @@ std::vector<unsigned> ProgramGraph::getNodesNotInMBBMap() const {
   return NodesNotInMap;
 }
 
+bool ProgramGraph::wireEntryExit(const std::vector<unsigned> &BodyNodeIds,
+                                 const std::vector<unsigned> &ReturnNodeIds,
+                                 unsigned EntryNode, unsigned ExitNode) {
+  bool ExitStateSet = false;
+
+  // Entry -> first block (if the function has any blocks at all).
+  if (!BodyNodeIds.empty())
+    addEdge(EntryNode, BodyNodeIds.front());
+
+  // Each return block -> Exit.
+  for (unsigned Ret : ReturnNodeIds) {
+    addEdge(Ret, ExitNode);
+    ExitStateSet = true;
+  }
+
+  if (BodyNodeIds.empty()) {
+    // Empty function (zero MachineBasicBlocks): wire Entry directly to Exit so
+    // the start function still has a valid Entry->Exit path. This replaces a
+    // former read of an uninitialized "CurrentNode" when the node loop never
+    // ran.
+    addEdge(EntryNode, ExitNode);
+    ExitStateSet = true;
+  } else if (!ExitStateSet) {
+    // No return block (e.g. a noreturn or infinite-loop function). Fall back to
+    // the last block in layout order so the graph stays connected to Exit.
+    addEdge(BodyNodeIds.back(), ExitNode);
+    ExitStateSet = true;
+    if (Verbose)
+      outs() << "  No return block found; wired last block (node "
+             << BodyNodeIds.back() << ") to the Exit node as a fallback.\n";
+  }
+
+  assert(ExitStateSet &&
+         "entry function must be connected to the Exit node");
+  return ExitStateSet;
+}
+
 bool ProgramGraph::fillGraphWithFunction(
     MachineFunction &MF, bool IsEntry,
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
@@ -285,11 +322,10 @@ bool ProgramGraph::fillGraphWithFunction(
     const std::set<
         std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
         &IrreducibleBackEdges) {
-  // Add entry state and Exit state
-  bool EntryStateSet = false;
-  bool ExitStateSet = false;
-  unsigned int ExitNode;
-  unsigned int EntryNode;
+  // Add entry state and Exit state. Only meaningful when IsEntry; the synthetic
+  // Entry/Exit edges are wired by wireEntryExit() after the node loop below.
+  unsigned int ExitNode = 0;
+  unsigned int EntryNode = 0;
 
   if (IsEntry) {
     EntryNode = addNode(std::make_unique<MuArchState>(0, 0), nullptr);
@@ -301,8 +337,12 @@ bool ProgramGraph::fillGraphWithFunction(
     StartFunction = &MF.getFunction();
   }
 
-  // Fill MuArchGraph Nodes
-  unsigned int CurrentNode;
+  // Fill MuArchGraph Nodes. Collect the function's nodes in layout order, and
+  // the subset that are return blocks; the synthetic Entry/Exit edges are then
+  // wired by wireEntryExit() (a pure helper, so the empty-function and
+  // no-return-block cases are unit-testable without a MachineFunction).
+  std::vector<unsigned> BodyNodeIds;
+  std::vector<unsigned> ReturnNodeIds;
   for (auto &MBB : MF) {
     // interate over MIs in MBB and find calling Instructions
     //  represented correctly by the dot file. Create a new MuArchStateGraph and
@@ -310,8 +350,9 @@ bool ProgramGraph::fillGraphWithFunction(
     auto It = MBBLatencyMap.find(&MBB);
     unsigned Latency = (It != MBBLatencyMap.end()) ? It->second : 0;
     addNode(std::make_unique<MuArchState>(Latency, Latency), &MBB);
-    CurrentNode = MBBToNodeMap[&MBB];
+    unsigned CurrentNode = MBBToNodeMap[&MBB];
     NodeToFunctionMap[CurrentNode] = &MF.getFunction();
+    BodyNodeIds.push_back(CurrentNode);
 
     // Check if this MBB is a loop header and set loop bounds
     auto LoopIt = LoopBoundMap.find(&MBB);
@@ -325,24 +366,13 @@ bool ProgramGraph::fillGraphWithFunction(
       }
     }
 
-    // Add entry state for the first Node only
-    if (IsEntry && !EntryStateSet) {
-      addEdge(EntryNode, CurrentNode);
-      EntryStateSet = true;
-    }
     // Add name for the node + Function name
     Nodes.at(CurrentNode).setName(MBB.getName());
-    // Add Edges to Exit node
-    if (IsEntry && MBB.isReturnBlock()) {
-      addEdge(MBBToNodeMap[&MBB], ExitNode);
-      ExitStateSet = true;
-    }
+    if (MBB.isReturnBlock())
+      ReturnNodeIds.push_back(CurrentNode);
   }
-  if (IsEntry && !ExitStateSet) {
-    addEdge(CurrentNode, ExitNode);
-    ExitStateSet = true;
-  }
-  // assert(ExitStateSet && "At least one Return should have been found!");
+  if (IsEntry)
+    wireEntryExit(BodyNodeIds, ReturnNodeIds, EntryNode, ExitNode);
 
   // Fill MuArchGraph Edges
   for (auto &MBB : MF) {

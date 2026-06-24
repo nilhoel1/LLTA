@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace llta {
 class RTTarget;
@@ -138,6 +139,18 @@ public:
    * id end.
    */
   void addEdge(unsigned FromNode, unsigned ToNode);
+
+  /**
+   * Wire the synthetic Entry/Exit nodes of an entry function. Pure with respect
+   * to MachineIR: \p BodyNodeIds are the graph nodes for the function's
+   * MachineBasicBlocks in layout order and \p ReturnNodeIds the subset that are
+   * return blocks. Handles the empty-function (Entry->Exit directly) and
+   * no-return-block (fallback: last block -> Exit) cases. Returns true once an
+   * Entry->...->Exit path is guaranteed (always, by construction).
+   */
+  bool wireEntryExit(const std::vector<unsigned> &BodyNodeIds,
+                     const std::vector<unsigned> &ReturnNodeIds,
+                     unsigned EntryNode, unsigned ExitNode);
 
   void removeNode(unsigned Node);
 

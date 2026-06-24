@@ -31,6 +31,29 @@ add_custom_target(check-llta-cfg
   COMMENT "Running LLTA CFG/ProgramGraph unit tests"
 )
 
+# End-to-end fillGraphWithFunction() on a synthetic MachineFunction (the empty /
+# no-return border cases unreachable through the C->ELF toolchain). Needs the
+# LLVM CodeGen stack to fabricate a MachineFunction with a Bogus target.
+set(LLVM_LINK_COMPONENTS
+  CodeGen
+  CodeGenTypes
+  Core
+  MC
+  SelectionDAG
+  Support
+  Target
+  TargetParser
+  TransformUtils
+)
+add_llvm_executable(LLTAMachineFunctionGraphTests
+  MachineFunctionGraphTests.cpp
+  PARTIAL_SOURCES_INTENDED
+)
+target_link_libraries(LLTAMachineFunctionGraphTests PRIVATE lltaGraph)
+add_test(NAME LLTAMachineFunctionGraphTests
+  COMMAND LLTAMachineFunctionGraphTests)
+add_dependencies(check-llta-cfg LLTAMachineFunctionGraphTests)
+
 # --- WCET ILP formulation tests ------------------------------------------
 # Build AbstractStateGraphs by hand and assert the HiGHS solver's WCET/Status.
 add_llvm_executable(LLTAILPSolverTests

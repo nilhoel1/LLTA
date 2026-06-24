@@ -131,13 +131,15 @@ test_suite() {
   cd build
   $BUILD_COMMAND clang-resource-headers
   $BUILD_COMMAND llta LoopBoundPlugin \
-    LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests
+    LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests \
+    LLTAMachineFunctionGraphTests
   cd ..
 
   echo ""
   echo "=== C++ unit tests ==="
   RC=0
-  for T in LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests; do
+  for T in LLTACacheModuleTests LLTAProgramGraphTests LLTAILPSolverTests \
+           LLTAMachineFunctionGraphTests; do
     echo "--- ${T} ---"
     "${SCRIPT_DIR}/build/bin/${T}" || RC=1
   done

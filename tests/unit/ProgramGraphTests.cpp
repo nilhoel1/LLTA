@@ -111,11 +111,62 @@ static void testBackEdgeBookkeeping() {
   CHECK(G.Nodes.at(Latch).BackEdgePredecessors.count(Hdr) == 0);
 }
 
+// wireEntryExit() is the pure helper that connects an entry function's synthetic
+// Entry/Exit nodes. These cases exercise the two shapes that are NOT reachable
+// through the C->ELF toolchain (they need a live MachineFunction), so the helper
+// is the only place they can be tested.
+
+// Empty function (zero body blocks): must wire Entry -> Exit directly and never
+// read an uninitialized node id (the former bug).
+static void testWireEntryExitEmpty() {
+  ProgramGraph G;
+  unsigned Entry = addNode(G, 0);
+  unsigned Exit = addNode(G, 0);
+  bool Ok = G.wireEntryExit(/*BodyNodeIds=*/{}, /*ReturnNodeIds=*/{}, Entry, Exit);
+  CHECK(Ok);
+  CHECK(G.hasEdge(Entry, Exit));
+}
+
+// Function with blocks but no return block (noreturn / infinite loop): fall back
+// to wiring the last block in layout order to Exit.
+static void testWireEntryExitNoReturn() {
+  ProgramGraph G;
+  unsigned Entry = addNode(G, 0);
+  unsigned Exit = addNode(G, 0);
+  unsigned B0 = addNode(G, 1);
+  unsigned B1 = addNode(G, 2);
+  bool Ok = G.wireEntryExit(/*BodyNodeIds=*/{B0, B1}, /*ReturnNodeIds=*/{}, Entry, Exit);
+  CHECK(Ok);
+  CHECK(G.hasEdge(Entry, B0));      // entry -> first block
+  CHECK(G.hasEdge(B1, Exit));       // fallback: last block -> exit
+  CHECK(!G.hasEdge(Entry, Exit));   // not the empty-function shortcut
+}
+
+// Normal function with multiple return blocks: entry -> first, every return -> exit.
+static void testWireEntryExitMultipleReturns() {
+  ProgramGraph G;
+  unsigned Entry = addNode(G, 0);
+  unsigned Exit = addNode(G, 0);
+  unsigned B0 = addNode(G, 1);
+  unsigned R1 = addNode(G, 2);
+  unsigned R2 = addNode(G, 3);
+  bool Ok = G.wireEntryExit(/*BodyNodeIds=*/{B0, R1, R2}, /*ReturnNodeIds=*/{R1, R2},
+                            Entry, Exit);
+  CHECK(Ok);
+  CHECK(G.hasEdge(Entry, B0));
+  CHECK(G.hasEdge(R1, Exit));
+  CHECK(G.hasEdge(R2, Exit));
+  CHECK(!G.hasEdge(B0, Exit)); // non-return block is not wired to exit
+}
+
 int main() {
   testNodesAndEdges();
   testRemoval();
   testSelfLoop();
   testBackEdgeBookkeeping();
+  testWireEntryExitEmpty();
+  testWireEntryExitNoReturn();
+  testWireEntryExitMultipleReturns();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";
