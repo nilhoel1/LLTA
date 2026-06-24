@@ -22,7 +22,7 @@ CCFLAGS = -D__MSP430F5529__ -O0 -gdwarf-4 -gstrict-dwarf -fno-dwarf2-cfi-asm \
           -Wno-deprecated-non-prototype -Wno-return-type
 
 # Optimization Passes
-OPTFLAGS = -passes='mem2reg,instcombine,loop-simplify,loop-rotate,indvars' -S #,loop-unroll
+OPTFLAGS = -passes='mem2reg,instcombine<no-verify-fixpoint>,loop-simplify,loop-rotate,indvars' -S #,loop-unroll
 
 # Backend Flags
 LLCFLAGS = --dwarf-version=4 --strict-dwarf -mtriple=msp430 -mcpu=msp430x \
