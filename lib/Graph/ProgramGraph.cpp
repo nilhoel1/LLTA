@@ -281,7 +281,10 @@ bool ProgramGraph::fillGraphWithFunction(
         &MBBLatencyMap,
     const std::unordered_map<const MachineBasicBlock *, unsigned int>
         &LoopBoundMap,
-    MachineLoopInfo *MLI) {
+    MachineLoopInfo *MLI,
+    const std::set<
+        std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
+        &IrreducibleBackEdges) {
   // Add entry state and Exit state
   bool EntryStateSet = false;
   bool ExitStateSet = false;
@@ -360,6 +363,18 @@ bool ProgramGraph::fillGraphWithFunction(
                    << "\n";
           }
         }
+      }
+
+      // Backedge of an irreducible loop MachineLoopInfo did not recognize (e.g.
+      // a switch jump-table forming a multi-entry loop -- Duff's device). The
+      // loop-bound pass found these via a DFS retreating-edge scan; flag the
+      // loop-closing predecessor here so the IPET loop-bound row is emitted for
+      // the (LoopBoundMap-bounded) header.
+      if (IrreducibleBackEdges.count({&MBB, Succ})) {
+        Nodes.at(ToNode).BackEdgePredecessors.insert(FromNode);
+        if (DebugPrints)
+          outs() << "  Identified irreducible backedge: " << FromNode << " -> "
+                 << ToNode << "\n";
       }
       //}
     }

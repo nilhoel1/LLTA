@@ -1,4 +1,5 @@
 #include "MIRPasses/MachineLoopBoundAgregatorPass.h"
+#include "Targets/RTTarget.h"
 #include "Utility/Options.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
@@ -12,8 +13,11 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #define DEBUG_TYPE "machine-loop-bound-aggregator"
 
@@ -88,6 +92,72 @@ loadLoopBoundsFromJSON(const std::string &JSONPath) {
   outs() << "Loaded " << Bounds.size()
          << " loop bounds from JSON file: " << JSONPath << "\n";
   return Bounds;
+}
+
+// Iterative DFS over the machine CFG rooted at the entry block. Returns the
+// back edges (edges to a block currently on the DFS stack) -- the loop-closing
+// edges. Unlike MachineLoopInfo this also finds the backedges of *irreducible*
+// (multi-entry) loops, e.g. a switch jump-table forming Duff's device.
+static std::set<std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
+findBackEdges(MachineFunction &MF) {
+  std::set<std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
+      Back;
+  if (MF.empty())
+    return Back;
+  enum Color { White, Gray, Black };
+  std::map<const MachineBasicBlock *, Color> Colors;
+  std::vector<std::pair<MachineBasicBlock *, MachineBasicBlock::succ_iterator>>
+      Stack;
+  MachineBasicBlock *Entry = &MF.front();
+  Colors[Entry] = Gray;
+  Stack.push_back({Entry, Entry->succ_begin()});
+  while (!Stack.empty()) {
+    MachineBasicBlock *BB = Stack.back().first;
+    if (Stack.back().second == BB->succ_end()) {
+      Colors[BB] = Black;
+      Stack.pop_back();
+      continue;
+    }
+    MachineBasicBlock *Succ = *Stack.back().second;
+    ++Stack.back().second; // advance before any push (which may reallocate)
+    Color &C = Colors[Succ];
+    if (C == White) {
+      C = Gray;
+      Stack.push_back({Succ, Succ->succ_begin()});
+    } else if (C == Gray) {
+      Back.insert({BB, Succ}); // Succ is on the stack -> back edge
+    }
+  }
+  return Back;
+}
+
+// The blocks of the loop whose header is \p H: those reachable from H that can
+// also reach H (the strongly-connected region around the header). Used to match
+// a JSON pragma to an irreducible loop MachineLoopInfo did not recognize.
+static std::set<const MachineBasicBlock *>
+computeLoopBody(MachineBasicBlock *H) {
+  std::set<const MachineBasicBlock *> Fwd, Bwd;
+  std::vector<MachineBasicBlock *> WL{H};
+  while (!WL.empty()) {
+    MachineBasicBlock *B = WL.back();
+    WL.pop_back();
+    for (MachineBasicBlock *S : B->successors())
+      if (Fwd.insert(S).second)
+        WL.push_back(S);
+  }
+  WL = {H};
+  while (!WL.empty()) {
+    MachineBasicBlock *B = WL.back();
+    WL.pop_back();
+    for (MachineBasicBlock *P : B->predecessors())
+      if (Bwd.insert(P).second)
+        WL.push_back(P);
+  }
+  std::set<const MachineBasicBlock *> Body{H};
+  for (const MachineBasicBlock *B : Fwd)
+    if (Bwd.count(B))
+      Body.insert(B);
+  return Body;
 }
 
 char MachineLoopBoundAgregatorPass::ID = 0;
@@ -299,10 +369,72 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
                << "\n";
     }
 
+    // Final seam: a backend-synthesized loop with no source statement and no IR
+    // loop (e.g. an MSP430 multi-bit shift loop) carries no SCEV/pragma bound.
+    // Let the target recognize and bound it. Queried last so it never shadows a
+    // tighter bound.
+    if (TripCount == 0) {
+      if (std::optional<unsigned> ImplicitBound =
+              TAR.getTarget().getImplicitLoopBound(*ML)) {
+        TripCount = *ImplicitBound;
+        if (DebugPrints)
+          outs() << "    - Got trip count from target implicit-loop bound: "
+                 << TripCount << "\n";
+      }
+    }
+
     if (TripCount > 0) {
       LoopBounds[Header] = TripCount;
       LLVM_DEBUG(dbgs() << "Loop bound for MBB " << Header->getNumber() << " ("
                         << Header->getName() << "): " << TripCount << "\n");
+    }
+  }
+
+  // Irreducible loops MachineLoopInfo did not recognize (multi-entry loops,
+  // e.g. a switch jump-table forming Duff's device). MachineLoopInfo reports no
+  // loop, so the per-machine-loop scan above never bounded them. Find their
+  // backedges via a DFS retreating-edge scan, bound the header from a JSON
+  // pragma matched against the loop body's source lines, and record the
+  // backedge so ProgramGraph flags the loop-closing predecessor (which makes
+  // the IPET loop-bound row fire for the now-bounded header).
+  if (!JSONBounds.empty()) {
+    for (const auto &[B, H] : findBackEdges(F)) {
+      // Skip reducible loops: MachineLoopInfo already exposes their header, so
+      // the scan above handled them. Only headers MLI does not recognize fall
+      // through to this irreducible path.
+      MachineLoop *HL = MLI.getLoopFor(H);
+      if (HL && HL->getHeader() == H)
+        continue;
+      if (LoopBounds.count(H))
+        continue; // already bounded as an irreducible header
+
+      auto Body = computeLoopBody(const_cast<MachineBasicBlock *>(H));
+      unsigned BestLine = 0;
+      unsigned BestBound = 0;
+      for (const MachineBasicBlock *MB : Body) {
+        for (const MachineInstr &MI : *MB) {
+          const DebugLoc &DL = MI.getDebugLoc();
+          if (!DL)
+            continue;
+          StringRef Base = sys::path::filename(DL->getFilename());
+          std::string Key = (Base + ":" + std::to_string(DL->getLine())).str();
+          auto It = JSONBoundsByLocation.find(Key);
+          if (It == JSONBoundsByLocation.end())
+            continue;
+          if (BestLine == 0 || DL->getLine() < BestLine) {
+            BestLine = DL->getLine();
+            BestBound = It->second;
+          }
+        }
+      }
+      if (BestBound > 0) {
+        LoopBounds[H] = BestBound;
+        TAR.addIrreducibleBackEdge(B, H);
+        if (DebugPrints)
+          outs() << "  Irreducible loop: header MBB " << H->getNumber()
+                 << " bounded at " << BestBound << " (line " << BestLine
+                 << "), backedge from MBB " << B->getNumber() << "\n";
+      }
     }
   }
 

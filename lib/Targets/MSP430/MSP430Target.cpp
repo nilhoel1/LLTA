@@ -1,7 +1,9 @@
 #include "Targets/MSP430/MSP430Target.h"
 
 #include "MCTargetDesc/MSP430MCTargetDesc.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/MC/MCInst.h"
@@ -27,6 +29,98 @@ unsigned MSP430Target::getInstructionLatency(const MachineInstr &I) const {
 std::optional<unsigned>
 MSP430Target::getInstructionLatency(const MCInst &I) const {
   return getMSP430Latency(I);
+}
+
+// True for `add rX,rX` / `addc rX,rX`, the backend's emulation of a left
+// shift / rotate-left by one (both source operands the same register). A plain
+// `add rA,rB` is a real addition, not a shift.
+static bool isRegSelfAddShift(const MachineInstr &MI) {
+  return MI.getNumOperands() >= 3 && MI.getOperand(1).isReg() &&
+         MI.getOperand(2).isReg() &&
+         MI.getOperand(1).getReg() == MI.getOperand(2).getReg();
+}
+
+std::optional<unsigned>
+MSP430Target::getImplicitLoopBound(const MachineLoop &L) const {
+  // The backend emits a multi-bit shift as a single block that branches to
+  // itself; reject anything more complex.
+  if (L.getNumBlocks() != 1)
+    return std::nullopt;
+  const MachineBasicBlock *MBB = L.getHeader();
+  if (!MBB->isSuccessor(MBB))
+    return std::nullopt;
+
+  // Bit width of the value being shifted, summed over the shift/rotate ops that
+  // make up the (possibly multi-word) shift -- e.g. a 32-bit shift is `rra`
+  // (high word) + `rrc` (low word) => 32. The C shift amount is strictly below
+  // this width, so the width is a sound upper bound on the trip count. A loop
+  // that mixes two independent shifts only over-approximates, which stays
+  // sound.
+  unsigned ShiftedWidthBits = 0;
+  bool SawCounterDecrement = false;
+
+  for (const MachineInstr &MI : *MBB) {
+    switch (MI.getOpcode()) {
+    // Right shift / rotate-right-through-carry (register form).
+    case MSP430::RRA16r:
+    case MSP430::RRC16r:
+      ShiftedWidthBits += 16;
+      break;
+    case MSP430::RRA8r:
+    case MSP430::RRC8r:
+      ShiftedWidthBits += 8;
+      break;
+    // Left shift / rotate-left, emulated as add/addc of a register with itself.
+    case MSP430::ADD16rr:
+    case MSP430::ADDC16rr:
+      if (!isRegSelfAddShift(MI))
+        return std::nullopt; // a real addition => not a shift loop
+      ShiftedWidthBits += 16;
+      break;
+    case MSP430::ADD8rr:
+    case MSP430::ADDC8rr:
+      if (!isRegSelfAddShift(MI))
+        return std::nullopt;
+      ShiftedWidthBits += 8;
+      break;
+    // The loop-counter decrement (`sub[.b] #1, rN`, also via subc/dec), which
+    // sets the flags the latch branch tests.
+    case MSP430::SUB16ri:
+    case MSP430::SUB8ri:
+    case MSP430::SUBC16ri:
+    case MSP430::SUBC8ri:
+      SawCounterDecrement = true;
+      break;
+    // Carry setup for a logical shift (`clrc` == `bic #1, sr`), the latch
+    // branch (JCC), an unconditional exit branch (`jmp`/`br #label`), and an
+    // optional explicit counter compare -- allowed, no width.
+    case MSP430::BIC16rc:
+    case MSP430::BIC8rc:
+    case MSP430::JCC:
+    case MSP430::JMP:
+    case MSP430::Bi: // long unconditional branch `br #label` (loop exit)
+    case MSP430::CMP16ri:
+    case MSP430::CMP8ri:
+      break;
+    // Book-keeping with no run-time effect.
+    case MSP430::CFI_INSTRUCTION:
+    case TargetOpcode::DBG_VALUE:
+    case TargetOpcode::DBG_LABEL:
+    case TargetOpcode::DBG_INSTR_REF:
+    case TargetOpcode::DBG_PHI:
+    case TargetOpcode::DBG_VALUE_LIST:
+      break;
+    // A memory access, call, or any other ALU op means this is not a pure shift
+    // loop. Stay conservative and decline to bound it.
+    default:
+      return std::nullopt;
+    }
+  }
+
+  // Require both a real shift and a counter, else the idiom did not match.
+  if (ShiftedWidthBits == 0 || !SawCounterDecrement)
+    return std::nullopt;
+  return ShiftedWidthBits;
 }
 
 // Core latency table, keyed only on the opcode and whether any operand

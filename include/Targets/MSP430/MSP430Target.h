@@ -9,6 +9,7 @@
 namespace llvm {
 class MachineInstr;
 class MCInst;
+class MachineLoop;
 } // namespace llvm
 
 namespace llta {
@@ -39,6 +40,13 @@ public:
   getInstructionLatency(const llvm::MCInst &MI) const override;
   void checkInstruction(const llvm::MachineInstr &MI) const override;
   unsigned getMaxInstructionWords() const override { return 3; }
+
+  /// Recognizes the counted shift loop the backend emits for multi-bit
+  /// `<<`/`>>` (a single self-looping block of shift/rotate ops + a counter
+  /// decrement + the latch branch) and bounds it by the shifted value's bit
+  /// width. Returns nullopt for any loop that does not match the idiom exactly.
+  std::optional<unsigned>
+  getImplicitLoopBound(const llvm::MachineLoop &L) const override;
 
   bool isControlFlowMnemonic(llvm::StringRef Mnemonic) const override;
   std::optional<uint64_t>

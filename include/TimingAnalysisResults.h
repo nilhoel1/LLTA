@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace llta {
@@ -63,6 +64,20 @@ public:
       std::unordered_map<const MachineBasicBlock *, unsigned int> LoopBoundMap);
 
   std::unordered_map<const MachineBasicBlock *, unsigned int> getLoopBoundMap();
+
+  // Backedges of irreducible loops MachineLoopInfo does not recognize (e.g. a
+  // switch jump-table forming a multi-entry loop -- Duff's device). Filled by
+  // MachineLoopBoundAgregatorPass via a DFS retreating-edge scan and consumed
+  // by ProgramGraph to flag the loop-closing predecessor so the IPET loop-bound
+  // row is emitted for the bounded header. Keyed (backedge source -> header).
+  std::set<std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
+      IrreducibleBackEdges;
+
+  void addIrreducibleBackEdge(const MachineBasicBlock *Pred,
+                              const MachineBasicBlock *Header);
+  const std::set<
+      std::pair<const MachineBasicBlock *, const MachineBasicBlock *>> &
+  getIrreducibleBackEdges() const;
   // END: Machine Loop Bound Agregator Pass Containers
 
   // START: Address Resolver Pass Containers
@@ -87,8 +102,8 @@ public:
   uint64_t getBranchTarget(const MachineInstr *MI) const;
 
   // Data/heap objects discovered in the linked ELF's data sections (.data,
-  // .bss, .rodata, .heap, ...) by AdressResolverPass. Foundation only; no timing
-  // pass consumes them yet.
+  // .bss, .rodata, .heap, ...) by AdressResolverPass. Foundation only; no
+  // timing pass consumes them yet.
   struct DataObject {
     std::string Name;
     uint64_t Address = 0;

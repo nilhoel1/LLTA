@@ -11,6 +11,7 @@
 namespace llvm {
 class MachineInstr;
 class MCInst;
+class MachineLoop;
 class MachineFunctionPass;
 class TimingAnalysisResults;
 class AbstractAnalysable;
@@ -77,6 +78,21 @@ public:
   /// See docs/LibraryCallCosting.md; the seam is kept for tractable cases.
   virtual std::optional<unsigned>
   getExternalCallCost(llvm::StringRef CalleeName) const {
+    return std::nullopt;
+  }
+
+  /// Trip-count bound for a machine loop the generic analysis could not bound
+  /// from SCEV, the clang-plugin JSON, or the machine-block pragma scan. This
+  /// is the seam for backend-synthesized loops that have no source-level
+  /// statement and no IR loop -- most notably the counted shift loops the
+  /// MSP430 backend emits for multi-bit `<<`/`>>` (it has no barrel shifter).
+  /// Their trip count is the shift amount, which for defined C is below the
+  /// shifted value's bit width, so a target can return that width as a sound
+  /// upper bound. Queried only after every other bounding path has failed, so
+  /// it never shadows a tighter bound. Default: none (the loop is left
+  /// unbounded as before).
+  virtual std::optional<unsigned>
+  getImplicitLoopBound(const llvm::MachineLoop &L) const {
     return std::nullopt;
   }
 

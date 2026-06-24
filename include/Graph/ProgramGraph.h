@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace llta {
 class RTTarget;
@@ -182,7 +183,10 @@ public:
           &MBBLatencyMap,
       const std::unordered_map<const MachineBasicBlock *, unsigned int>
           &LoopBoundMap = {},
-      MachineLoopInfo *MLI = nullptr);
+      MachineLoopInfo *MLI = nullptr,
+      const std::set<
+          std::pair<const MachineBasicBlock *, const MachineBasicBlock *>>
+          &IrreducibleBackEdges = {});
 
   /**
    * Fill the MuArchStateGraph with all functions from a module.

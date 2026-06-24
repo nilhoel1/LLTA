@@ -199,6 +199,14 @@ AbstractHighsSolver::solveWCET(const AbstractStateGraph &ASG) {
   HighsModelStatus ModelStatus = highs.getModelStatus();
   if (ModelStatus == HighsModelStatus::kOptimal) {
     Result.WCET = highs.getObjectiveValue();
+    // Record per-node execution counts (parallels the Gurobi backend) so the
+    // solution can be inspected.
+    const std::vector<double> &ColValue = highs.getSolution().col_value;
+    for (const auto &Pair : NodeCols) {
+      if (Pair.second >= 0 && Pair.second < (int)ColValue.size() &&
+          ColValue[Pair.second] > 0.0001)
+        Result.ExecutionCounts[Pair.first] = ColValue[Pair.second];
+    }
   } else {
     // Record why no WCET was produced (e.g. kInfeasible / kUnbounded) so the
     // failure is diagnosable rather than a silent WCET <= 0.

@@ -51,6 +51,17 @@ TimingAnalysisResults::getLoopBoundMap() {
   // We do not assert here, because it is possible that no loops are found
   return LoopBoundMap;
 }
+
+void TimingAnalysisResults::addIrreducibleBackEdge(
+    const MachineBasicBlock *Pred, const MachineBasicBlock *Header) {
+  IrreducibleBackEdges.insert({Pred, Header});
+}
+
+const std::set<
+    std::pair<const MachineBasicBlock *, const MachineBasicBlock *>> &
+TimingAnalysisResults::getIrreducibleBackEdges() const {
+  return IrreducibleBackEdges;
+}
 // END: Machine Loop Bound Agregator Pass Containers
 
 // START: Address Resolver Pass Containers

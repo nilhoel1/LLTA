@@ -54,7 +54,8 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
       IsEntry = true;
   }
 
-  TAR.MASG.fillGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap, MLI);
+  TAR.MASG.fillGraphWithFunction(F, IsEntry, MBBLatencyMap, LoopBoundMap, MLI,
+                                 TAR.getIrreducibleBackEdges());
 
   // Check if this is the last function to finalize
   bool IsLast = false;
