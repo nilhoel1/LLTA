@@ -51,6 +51,70 @@ struct LoopBoundExport {
 // Global vector to collect all loop bounds for export
 static std::vector<LoopBoundExport> *LoopBoundsToExport = nullptr;
 
+// Recursion bounds (#pragma recursion_bound(N)) keyed by the file offset of the
+// pragma, paired with the export vector keyed by function name. A recursion
+// bound is the max total number of invocations of a recursive function per
+// top-level call -- the inter-procedural analog of a loop trip count.
+static std::map<unsigned, unsigned> *RecursionBoundMap = nullptr;
+
+struct RecursionBoundExport {
+  std::string FunctionName;
+  unsigned Bound;
+};
+static std::vector<RecursionBoundExport> *RecursionBoundsToExport = nullptr;
+
+// Pragma handler for #pragma recursion_bound(N): a single numeric constant.
+class RecursionBoundPragmaHandler : public PragmaHandler {
+public:
+  RecursionBoundPragmaHandler() : PragmaHandler("recursion_bound") {
+    if (!RecursionBoundMap)
+      RecursionBoundMap = new std::map<unsigned, unsigned>();
+    if (!RecursionBoundsToExport)
+      RecursionBoundsToExport = new std::vector<RecursionBoundExport>();
+  }
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &PragmaTok) override {
+    SourceLocation PragmaLoc = PragmaTok.getLocation();
+
+    Token Tok;
+    PP.Lex(Tok);
+    if (Tok.isNot(tok::l_paren)) {
+      PP.Diag(Tok.getLocation(), diag::err_expected) << "(";
+      return;
+    }
+
+    PP.Lex(Tok);
+    if (Tok.isNot(tok::numeric_constant)) {
+      PP.Diag(Tok.getLocation(), diag::err_expected) << "numeric constant";
+      return;
+    }
+
+    llvm::SmallString<64> SpellingBuffer;
+    bool Invalid = false;
+    StringRef Spelling = PP.getSpelling(Tok, SpellingBuffer, &Invalid);
+    unsigned Bound = 0;
+    if (Invalid || Spelling.getAsInteger(10, Bound)) {
+      PP.Diag(Tok.getLocation(), diag::err_expected) << "numeric constant";
+      return;
+    }
+
+    PP.Lex(Tok);
+    if (Tok.isNot(tok::r_paren)) {
+      PP.Diag(Tok.getLocation(), diag::err_expected) << ")";
+      return;
+    }
+
+    SourceManager &SM = PP.getSourceManager();
+    unsigned Offset = SM.getFileOffset(PragmaLoc);
+    (*RecursionBoundMap)[Offset] = Bound;
+
+    if (VerboseOutput)
+      llvm::errs()
+          << "[LoopBoundPlugin] Stored recursion_bound pragma at offset "
+          << Offset << " with bound: " << Bound << "\n";
+  }
+};
+
 // Pragma handler for #pragma loop_bound(lower, upper)
 class LoopBoundPragmaHandler : public PragmaHandler {
 public:
@@ -186,6 +250,41 @@ public:
 
   bool VisitDoStmt(DoStmt *S) {
     ProcessLoop(S, S->getBeginLoc());
+    return true;
+  }
+
+  // Match a #pragma recursion_bound(N) sitting immediately before a function
+  // definition to that function, exporting (function name -> bound). Only
+  // definitions (with a body) are considered, mirroring the loop-bound
+  // backward-search-by-offset matching.
+  bool VisitFunctionDecl(FunctionDecl *FD) {
+    if (!RecursionBoundMap || !FD->doesThisDeclarationHaveABody())
+      return true;
+
+    SourceManager &SM = Context.getSourceManager();
+    unsigned FuncOffset = SM.getFileOffset(FD->getBeginLoc());
+
+    unsigned BestOffset = 0;
+    bool Found = false;
+    unsigned Bound = 0;
+    for (auto &Entry : *RecursionBoundMap) {
+      unsigned PragmaOffset = Entry.first;
+      if (PragmaOffset < FuncOffset && (FuncOffset - PragmaOffset) < 200) {
+        if (!Found || PragmaOffset > BestOffset) {
+          BestOffset = PragmaOffset;
+          Bound = Entry.second;
+          Found = true;
+        }
+      }
+    }
+
+    if (Found && RecursionBoundsToExport) {
+      if (VerboseOutput)
+        llvm::errs() << "[LoopBoundPlugin] Attaching recursion_bound (" << Bound
+                     << ") to function '" << FD->getName() << "'\n";
+      RecursionBoundsToExport->push_back({FD->getNameAsString(), Bound});
+      RecursionBoundMap->erase(BestOffset);
+    }
     return true;
   }
 
@@ -342,27 +441,45 @@ public:
   }
 
   void ExportLoopBoundsJSON(ASTContext &Context) {
-    if (!LoopBoundsToExport || LoopBoundsToExport->empty()) {
+    bool HaveLoops = LoopBoundsToExport && !LoopBoundsToExport->empty();
+    bool HaveRecursion =
+        RecursionBoundsToExport && !RecursionBoundsToExport->empty();
+    if (!HaveLoops && !HaveRecursion) {
       if (VerboseOutput)
-        llvm::errs() << "[LoopBoundPlugin] No loop bounds to export\n";
+        llvm::errs() << "[LoopBoundPlugin] No loop or recursion bounds to "
+                        "export\n";
       return;
     }
 
     // Build JSON array
     llvm::json::Array LoopBoundsArray;
-    for (const auto &LB : *LoopBoundsToExport) {
-      llvm::json::Object LoopObj;
-      LoopObj["file"] = LB.FileName;
-      LoopObj["line"] = LB.Line;
-      LoopObj["column"] = LB.Column;
-      LoopObj["lower_bound"] = LB.LowerBound;
-      LoopObj["upper_bound"] = LB.UpperBound;
-      LoopBoundsArray.push_back(std::move(LoopObj));
+    if (HaveLoops) {
+      for (const auto &LB : *LoopBoundsToExport) {
+        llvm::json::Object LoopObj;
+        LoopObj["file"] = LB.FileName;
+        LoopObj["line"] = LB.Line;
+        LoopObj["column"] = LB.Column;
+        LoopObj["lower_bound"] = LB.LowerBound;
+        LoopObj["upper_bound"] = LB.UpperBound;
+        LoopBoundsArray.push_back(std::move(LoopObj));
+      }
+    }
+
+    // Recursion bounds keyed by function name.
+    llvm::json::Array RecursionBoundsArray;
+    if (HaveRecursion) {
+      for (const auto &RB : *RecursionBoundsToExport) {
+        llvm::json::Object Obj;
+        Obj["function"] = RB.FunctionName;
+        Obj["bound"] = RB.Bound;
+        RecursionBoundsArray.push_back(std::move(Obj));
+      }
     }
 
     // Create JSON object
     llvm::json::Object Root;
     Root["loop_bounds"] = std::move(LoopBoundsArray);
+    Root["recursion_bounds"] = std::move(RecursionBoundsArray);
 
     // Get the main source file name
     SourceManager &SM = Context.getSourceManager();
@@ -404,6 +521,7 @@ public:
     // Register the pragma handler
     Preprocessor &PP = CI.getPreprocessor();
     PP.AddPragmaHandler(new LoopBoundPragmaHandler());
+    PP.AddPragmaHandler(new RecursionBoundPragmaHandler());
     if (VerboseOutput)
       llvm::errs()
           << "[LoopBoundPlugin] Pragma handler added to preprocessor\n";

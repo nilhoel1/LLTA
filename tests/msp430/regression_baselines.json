@@ -41,7 +41,7 @@
     "prime":         { "expected": 28753, "status": "unsound", "note": "Bounded by the call/return matching constraints (main->prime->divides; divides reached from multiple sites). UNSOUND: body-less __mspabi_* integer mul/div/mod helpers costed as 0." },
     "qsort-exam":    { "expected": 1022962 },
     "qurt":          { "expected": 14961, "status": "unsound", "note": "Bonus: soft-float kernel that shared the multi-call unboundedness; bounded now by the call/return matching constraints. UNSOUND: soft-float __mspabi_* routines body-less, costed as 0." },
-    "recursion":     { "expected": null, "status": "analyze-fail", "note": "Links now (In defined). No loops to bound -- the analyzer bounds loops, not the fib() recursion -> Failed to compute WCET." },
+    "recursion":     { "expected": 6916, "status": "ok-recursion", "note": "main computes fib(10); #pragma recursion_bound(177) caps fib's total invocations (C(10)=177), so finalize() bounds the recursive call edges like loop backedges and a finite WCET is produced. The mutual anka/kalle pair is unreachable from main (pruned), so it does not affect the result. Was analyze-fail before recursion bounds existed." },
     "select":        { "expected": 527119 },
     "sqrt":          { "expected": 3464, "note": "Added a self-contained main(); the kernel implements its own fabs/sqrtfcn (no external libm), so the WCET is sound." },
     "statemate":     { "expected": 3230, "note": "Was non-deterministic on a start-function ref-count tie; tie now broken (starts from main) -> deterministic. Self-contained, all 302 graph nodes reachable." },

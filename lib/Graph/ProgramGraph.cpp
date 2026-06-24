@@ -307,8 +307,7 @@ bool ProgramGraph::wireEntryExit(const std::vector<unsigned> &BodyNodeIds,
              << BodyNodeIds.back() << ") to the Exit node as a fallback.\n";
   }
 
-  assert(ExitStateSet &&
-         "entry function must be connected to the Exit node");
+  assert(ExitStateSet && "entry function must be connected to the Exit node");
   return ExitStateSet;
 }
 
@@ -476,8 +475,9 @@ void ProgramGraph::fillGraph(
   }
 }
 
-bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
-                            const llta::RTTarget *Target) {
+bool ProgramGraph::finalize(
+    MachineFunction &MF, MachineModuleInfo *MMI, const llta::RTTarget *Target,
+    const std::map<std::string, unsigned> &RecursionBounds) {
   // Body-less external calls (declared-but-undefined IR functions like libm
   // sin/cos, and backend MO_ExternalSymbol libcalls like __mspabi_*) have no
   // node in the graph. Charge the target's cost for them if it has one, else
@@ -498,6 +498,11 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
     }
     PendingUnsound.push_back({CallNode, Name.str()});
   };
+
+  // Recursion findings, collected by IR Function during wiring and filtered to
+  // the reachable subgraph after pruning (so dead-code recursion does not
+  // produce a spurious "unbounded" diagnostic when the live WCET is finite).
+  std::set<const Function *> BoundedSelfRec, UnboundedSelfRec, MutualRec;
 
   // Process all captured call sites
   for (const auto &[CallNode, Callee, LandingNode, HasLanding] : CallSites) {
@@ -523,6 +528,29 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
         for (unsigned ReturnNode : FunctionToReturnNodesMap[Callee])
           addEdge(ReturnNode, LandingNode);
       }
+
+      // Self-recursion: the call edge closes a cycle back into the callee's own
+      // entry. Treat that entry like a bounded loop header whose backedge is
+      // the recursive call edge, so the existing IPET loop-bound row caps total
+      // invocations. The bound (max total invocations per top-level call) comes
+      // from `#pragma recursion_bound(N)`. Without a bound the cycle is
+      // unbounded -- record it for diagnosis rather than emitting an unsolvable
+      // (unbounded) ILP silently.
+      auto It = NodeToFunctionMap.find(CallNode);
+      const Function *Caller =
+          It != NodeToFunctionMap.end() ? It->second : nullptr;
+      if (Caller && Caller == Callee) {
+        auto RB = RecursionBounds.find(Callee->getName().str());
+        if (RB != RecursionBounds.end() && RB->second > 0) {
+          Node &Entry = Nodes.at(CaleeNode);
+          Entry.IsLoop = true;
+          Entry.UpperLoopBound = RB->second;
+          Entry.BackEdgePredecessors.insert(CallNode);
+          BoundedSelfRec.insert(Callee);
+        } else {
+          UnboundedSelfRec.insert(Callee);
+        }
+      }
     } else if (Callee->isDeclaration()) {
       // Declared-but-undefined function whose body is not in the analyzed IR
       // (e.g. libm). Cost it via the target model or flag it as unsound.
@@ -534,6 +562,43 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
              << " not found in FunctionToEntryNodeMap\n";
     }
   }
+
+  // Detect mutual recursion (multi-function call-graph cycles). Build the
+  // function-level call adjacency from the captured call sites, then flag any
+  // function F that calls some G != F where G can reach back to F. Such cycles
+  // are not bounded in this phase (only direct self-recursion is) -- report
+  // them so the unbounded ILP failure is diagnosable.
+  std::map<const Function *, std::set<const Function *>> CallAdj;
+  for (const auto &CS : CallSites) {
+    auto It = NodeToFunctionMap.find(CS.CallNode);
+    const Function *Caller =
+        It != NodeToFunctionMap.end() ? It->second : nullptr;
+    if (Caller && CS.Callee)
+      CallAdj[Caller].insert(CS.Callee);
+  }
+  auto reaches = [&](const Function *Src, const Function *Dst) {
+    std::set<const Function *> Visited;
+    std::vector<const Function *> WL{Src};
+    while (!WL.empty()) {
+      const Function *Cur = WL.back();
+      WL.pop_back();
+      if (Cur == Dst)
+        return true;
+      auto AdjIt = CallAdj.find(Cur);
+      if (AdjIt == CallAdj.end())
+        continue;
+      for (const Function *N : AdjIt->second)
+        if (Visited.insert(N).second)
+          WL.push_back(N);
+    }
+    return false;
+  };
+  for (const auto &[Caller, Callees] : CallAdj)
+    for (const Function *Callee : Callees)
+      if (Caller != Callee && reaches(Callee, Caller)) {
+        MutualRec.insert(Caller);
+        MutualRec.insert(Callee);
+      }
 
   // Backend-synthesized libcalls (no IR Function): cost by symbol name.
   for (const auto &[CallNode, Name] : ExternalSymbolCallSites)
@@ -591,6 +656,45 @@ bool ProgramGraph::finalize(MachineFunction &MF, MachineModuleInfo *MMI,
   for (const auto &[CallNode, Name] : PendingUnsound)
     if (Nodes.find(CallNode) != Nodes.end())
       UnsoundExternalCallees.insert(Name);
+
+  // Surface recursion findings, but only for functions that survived pruning
+  // (i.e. lie on a reachable analysis path). A function survives iff its entry
+  // node is still present. Bounded self-recursion is informational; the
+  // unbounded cases (self-recursion without a `recursion_bound`, and any mutual
+  // recursion) make the WCET non-existent, so name them clearly.
+  auto Reachable = [&](const Function *F) {
+    auto It = FunctionToEntryNodeMap.find(F);
+    return It != FunctionToEntryNodeMap.end() && Nodes.count(It->second);
+  };
+  for (const Function *F : BoundedSelfRec)
+    if (Reachable(F)) {
+      BoundedRecursionFunctions.insert(F->getName().str());
+      outs() << "RECURSION: bounded self-recursive function '" << F->getName()
+             << "' via recursion_bound.\n";
+    }
+  for (const Function *F : UnboundedSelfRec)
+    if (Reachable(F)) {
+      UnboundedRecursionFunctions.insert(F->getName().str());
+      outs()
+          << "RECURSION: function '" << F->getName()
+          << "' is self-recursive but has no recursion_bound; its call cycle "
+             "is UNBOUNDED (no WCET). Add #pragma recursion_bound(N).\n";
+    }
+  std::set<std::string> ReachableMutual;
+  for (const Function *F : MutualRec)
+    if (Reachable(F))
+      ReachableMutual.insert(F->getName().str());
+  if (!ReachableMutual.empty()) {
+    MutualRecursionFunctions = ReachableMutual;
+    outs() << "RECURSION: mutual recursion detected among {";
+    bool First = true;
+    for (const auto &Name : ReachableMutual) {
+      outs() << (First ? "" : ", ") << Name;
+      First = false;
+    }
+    outs() << "}; multi-function cycles are not bounded in this phase, so the "
+              "WCET is UNBOUNDED.\n";
+  }
 
   // outs() << "Printing Dot file \n";
   dump2Dot(StringRef("ProgramGraph.dot"));

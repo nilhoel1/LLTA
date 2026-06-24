@@ -4,28 +4,30 @@
 // IPET/ILP formulation in lib/ILP/ in isolation, without the MSP430 toolchain.
 //
 // The solver consumes an AbstractStateGraph (ASG) and reads only:
-//   - Node->Cost, Node->IsEntry/IsExit, Node->IsLoopHeader, Node->UpperLoopBound
+//   - Node->Cost, Node->IsEntry/IsExit, Node->IsLoopHeader,
+//   Node->UpperLoopBound
 //   - edges (with their IsBackEdge flag)
 //   - CallSites / FunctionEntries / FunctionReturns
-// It never dereferences Node->State, so each test builds an ASG by hand (passing
-// a null AbstractState) and calls AbstractHighsSolver::solveWCET, asserting the
-// resulting WCET / Status.
+// It never dereferences Node->State, so each test builds an ASG by hand
+// (passing a null AbstractState) and calls AbstractHighsSolver::solveWCET,
+// asserting the resulting WCET / Status.
 //
 // IPET flow semantics (used to derive the expected numbers below): with the
 // entry constraint x_entry = 1, flow conservation x_u = sum(in) = sum(out), and
-// the loop-bound row (B-1)*x_header - B*sum(backedges) >= 0, a loop with bound N
-// executes its header N times and its body N-1 times (the backedge is taken at
-// most N-1 times).
+// the loop-bound row (B-1)*x_header - B*sum(backedges) >= 0, a loop with bound
+// N executes its header N times and its body N-1 times (the backedge is taken
+// at most N-1 times).
 //
-// Two cases are *documented expected-failures* (CHECK_GAP): an unbounded loop
-// and unbounded recursion. They assert the CURRENT (limited) behavior -- the
-// solver reports a non-empty Status (no WCET) -- and print a GAP line. The day
-// the implementation learns to bound these, the assertion flips to red, which is
-// the intended "update me" signal.
+// One case is a *documented expected-failure* (CHECK_GAP): an unbounded loop
+// (UpperLoopBound==0). It asserts the CURRENT (limited) behavior -- the solver
+// reports a non-empty Status (no WCET) -- and prints a GAP line. The day the
+// implementation learns to bound it, the assertion flips to red, the intended
+// "update me" signal. (Self-recursion was finding #5's GAP; it is now bounded
+// and covered by testRecursionBounded.)
 //
 // HiGHS is the always-available open-source backend. When the build has no ILP
-// backend enabled (ENABLE_HIGHS undefined for this target) the tests are skipped
-// with a success exit, because solveWCET cannot produce a result.
+// backend enabled (ENABLE_HIGHS undefined for this target) the tests are
+// skipped with a success exit, because solveWCET cannot produce a result.
 //
 // Run via CTest (`ctest -R LLTAILPSolverTests`) or the `check-llta-ilp` target.
 //===----------------------------------------------------------------------===//
@@ -67,7 +69,8 @@ static int Failures = 0;
 
 // Documented expected-failure: assert the CURRENT (limited) behavior and print
 // a GAP note. When the gap is later closed, `cond` becomes false and the test
-// turns red, signalling that this assertion must be updated to the new contract.
+// turns red, signalling that this assertion must be updated to the new
+// contract.
 #define CHECK_GAP(cond, note)                                                  \
   do {                                                                         \
     std::cout << "GAP: " << note << "\n";                                      \
@@ -81,8 +84,8 @@ static bool wcetEq(double W, long Expected) {
   return std::llround(W) == Expected;
 }
 
-// addNode takes ownership of an AbstractState; the solver never dereferences it,
-// so a null state is sufficient for these formulation tests.
+// addNode takes ownership of an AbstractState; the solver never dereferences
+// it, so a null state is sufficient for these formulation tests.
 static unsigned addNode(AbstractStateGraph &G, unsigned Cost,
                         bool IsEntry = false, bool IsExit = false) {
   unsigned Id = G.addNode(nullptr);
@@ -208,12 +211,12 @@ static void testTwoCallSiteMatching() {
   unsigned X = addNode(G, 0, false, true);
 
   G.addEdge(E, C1);
-  G.addEdge(C1, FE);  // call edge 1
-  G.addEdge(FE, FR);  // callee body
-  G.addEdge(FR, L1);  // return edge 1
+  G.addEdge(C1, FE); // call edge 1
+  G.addEdge(FE, FR); // callee body
+  G.addEdge(FR, L1); // return edge 1
   G.addEdge(L1, C2);
-  G.addEdge(C2, FE);  // call edge 2
-  G.addEdge(FR, L2);  // return edge 2
+  G.addEdge(C2, FE); // call edge 2
+  G.addEdge(FR, L2); // return edge 2
   G.addEdge(L2, X);
 
   // Need a real Function* key; a unique non-null sentinel is enough because the
@@ -235,8 +238,8 @@ static void testTwoCallSiteMatching() {
 
 // Irreducible / multi-entry loop: the cycle {H,B} is entered at both H and B
 // (no clean MachineLoopInfo header). The loop pass marks the closing edge B->H
-// as a backedge and bounds H. The key property: the ILP stays BOUNDED -- it does
-// not go unbounded the way an unmarked irreducible cycle would.
+// as a backedge and bounds H. The key property: the ILP stays BOUNDED -- it
+// does not go unbounded the way an unmarked irreducible cycle would.
 static void testIrreducibleBounded() {
   AbstractStateGraph G;
   unsigned E = addNode(G, 0, true);
@@ -283,24 +286,38 @@ static void testUnboundedLoopGap() {
   CHECK(wcetEq(R.WCET, 0)); // no objective produced
 }
 
-// GAP (finding #5): the call/return matching row binds a recursive call's edge
-// to its return but imposes no depth limit, so a self-recursive cycle through
-// the call edge is unbounded. Today the solver reports a non-empty Status.
-static void testRecursionGap() {
+// Bounded self-recursion (was finding #5's GAP). ProgramGraph::finalize bounds
+// a self-recursive function by treating the callee entry as a loop header whose
+// backedge is the recursive call edge, with UpperLoopBound = the supplied
+// recursion_bound (max total invocations). This test mirrors that wiring and
+// asserts a finite, exact WCET -- the recursion is now bounded exactly like a
+// loop with bound B.
+//
+// Structure: f is called once from the entry (E->FE). FE (cost h) branches to
+// the recursive-call block Crec (cost c) or to the base-case return FR (cost
+// r); Crec->FE is the marked backedge; the return block FR flows to the
+// recursive call's landing Lr (cost l) and, for the top-level invocation, to X.
+// With external entry = 1 and bound B the IPET counts are: FE=B, Crec=B-1,
+// FR=B, Lr=B-1, so WCET = h*B + c*(B-1) + r*B + l*(B-1).
+static void testRecursionBounded() {
+  const unsigned H = 10, C = 5, Rr = 2, L = 3, B = 5;
   AbstractStateGraph G;
   unsigned E = addNode(G, 0, true);
-  unsigned FE = addNode(G, 10);   // F entry
-  unsigned Crec = addNode(G, 5);  // recursive call site inside F
-  unsigned FR = addNode(G, 0);    // F return block
-  unsigned Lr = addNode(G, 0);    // landing for the recursive call
+  unsigned FE = addNode(G, H);   // F entry (recursion "header")
+  unsigned Crec = addNode(G, C); // recursive call site inside F
+  unsigned FR = addNode(G, Rr);  // F return block
+  unsigned Lr = addNode(G, L);   // landing for the recursive call
   unsigned X = addNode(G, 0, false, true);
 
+  markLoopHeader(G, FE, B); // recursion bound = total invocations
+
   G.addEdge(E, FE);
-  G.addEdge(FE, Crec);
-  G.addEdge(Crec, FE); // recursive call edge -> unbounded cycle
-  G.addEdge(FR, Lr);   // return from the recursive call
-  G.addEdge(Lr, FR);
-  G.addEdge(FR, X);
+  G.addEdge(FE, Crec);                      // recurse arm
+  G.addEdge(FE, FR);                        // base-case arm -> return
+  G.addEdge(Crec, FE, /*IsBackEdge=*/true); // recursive call edge = backedge
+  G.addEdge(FR, Lr); // return edge: F return -> recursive landing
+  G.addEdge(Lr, FR); // the landed invocation also returns
+  G.addEdge(FR, X);  // top-level return to exit
 
   const Function *F = reinterpret_cast<const Function *>(0x2);
   G.FunctionEntries[F] = FE;
@@ -309,9 +326,10 @@ static void testRecursionGap() {
 
   AbstractHighsSolver S;
   auto R = S.solveWCET(G);
-  CHECK_GAP(!R.Status.empty(),
-            "self-recursion is unbounded in the ILP (no depth limit); update "
-            "this test when recursion depth is bounded");
+  CHECK(R.Status.empty()); // bounded now, not unbounded
+  long Expected = (long)H * B + (long)C * (B - 1) + (long)Rr * B +
+                  (long)L * (B - 1); // 50 + 20 + 10 + 12 = 92
+  CHECK(wcetEq(R.WCET, Expected));
 }
 
 #endif // ENABLE_HIGHS
@@ -325,7 +343,7 @@ int main() {
   testTwoCallSiteMatching();
   testIrreducibleBounded();
   testUnboundedLoopGap();
-  testRecursionGap();
+  testRecursionBounded();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";

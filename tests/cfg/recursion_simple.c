@@ -1,8 +1,12 @@
-/* GAP (finding #5): self-recursion. The ILP's call/return matching binds each
- * recursive call to its return but imposes no depth limit, so the analyzer
- * cannot bound the recursion. Documented expected-failure: produces NO WCET. */
+/* Self-recursion (fib) bounded via #pragma recursion_bound. The recursive call
+ * edge closes a cycle back into fib's entry; the pragma turns that entry into a
+ * bounded loop header (max total invocations per top-level call), so the IPET
+ * loop-bound row caps the recursion and a finite WCET is produced. Multiple
+ * recursive call sites (fib(x-1) and fib(x-2)) are both backedges into the
+ * entry; their sum is bounded by N-1. */
 volatile int n;
 
+#pragma recursion_bound(20)
 int fib(int x) {
   if (x < 2)
     return x;

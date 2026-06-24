@@ -5,6 +5,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -64,6 +65,21 @@ public:
       std::unordered_map<const MachineBasicBlock *, unsigned int> LoopBoundMap);
 
   std::unordered_map<const MachineBasicBlock *, unsigned int> getLoopBoundMap();
+
+  // Recursion bounds supplied via `#pragma recursion_bound(N)` (emitted by the
+  // LoopBoundPlugin into the same JSON, under a "recursion_bounds" array).
+  // Keyed by function name -> maximum total number of invocations per top-level
+  // call. Consumed by ProgramGraph::finalize to bound a self-recursive call
+  // edge: the callee entry node is treated as a loop header whose backedge is
+  // the recursive call edge, so the existing IPET loop-bound row caps total
+  // invocations at N. The recursion bound is the inter-procedural analog of a
+  // loop trip count.
+  std::map<std::string, unsigned int> RecursionBoundMap;
+
+  void
+  setRecursionBoundMap(std::map<std::string, unsigned int> RecursionBoundMap);
+
+  std::map<std::string, unsigned int> getRecursionBoundMap() const;
 
   // Backedges of irreducible loops MachineLoopInfo does not recognize (e.g. a
   // switch jump-table forming a multi-entry loop -- Duff's device). Filled by

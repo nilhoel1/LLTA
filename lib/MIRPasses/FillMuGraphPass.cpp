@@ -73,7 +73,7 @@ bool FillMuGraphPass::runOnMachineFunction(MachineFunction &F) {
   }
 
   if (IsLast) {
-    TAR.MASG.finalize(F, MMI, &TAR.getTarget());
+    TAR.MASG.finalize(F, MMI, &TAR.getTarget(), TAR.getRecursionBoundMap());
   }
 
   return false;

@@ -52,6 +52,16 @@ TimingAnalysisResults::getLoopBoundMap() {
   return LoopBoundMap;
 }
 
+void TimingAnalysisResults::setRecursionBoundMap(
+    std::map<std::string, unsigned int> RecursionBoundMap) {
+  this->RecursionBoundMap = std::move(RecursionBoundMap);
+}
+
+std::map<std::string, unsigned int>
+TimingAnalysisResults::getRecursionBoundMap() const {
+  return RecursionBoundMap;
+}
+
 void TimingAnalysisResults::addIrreducibleBackEdge(
     const MachineBasicBlock *Pred, const MachineBasicBlock *Header) {
   IrreducibleBackEdges.insert({Pred, Header});

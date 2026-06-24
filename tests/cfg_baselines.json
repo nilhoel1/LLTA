@@ -42,9 +42,24 @@
       "note": "GAP (finding #3): genuine indirect (function-pointer) call via a volatile-indexed table. The callee is NOT wired into the graph and its cost is omitted -- a silent under-approximation that is NOT flagged unsound. Pinned at the observed value; when indirect calls are modeled this will change (YELLOW -> refresh)."
     },
     "recursion_simple": {
+      "expected": 771,
+      "status": "ok-recursion",
+      "note": "Self-recursion (fib) bounded via #pragma recursion_bound(20). finalize() treats fib's entry as a loop header whose backedges are the two recursive call edges (fib(x-1), fib(x-2)), capping total invocations at 20, so the IPET loop-bound row yields a finite WCET. Was finding #5's documented gap; now closed."
+    },
+    "recursion_linear": {
+      "expected": 275,
+      "status": "ok-recursion",
+      "note": "Linear single-call-site self-recursion (sum) bounded via #pragma recursion_bound(11): the recursive call edge is the single backedge into sum's entry, capped at 11 total invocations. Finite WCET."
+    },
+    "recursion_unbounded": {
       "expected": null,
-      "status": "gap-recursion",
-      "note": "GAP (finding #5): self-recursion (fib). The ILP call/return matching binds each recursive call to its return but imposes no depth limit, so the analyzer cannot bound the recursion: no WCET produced. Refresh if recursion depth is ever bounded."
+      "status": "expect-unbounded",
+      "note": "Self-recursion (fac) with NO recursion_bound: the recursive call edge forms an unbounded cycle, so NO WCET is produced (solver: infeasible-or-unbounded). finalize() reports 'RECURSION: ... has no recursion_bound; ... UNBOUNDED'. Turns YELLOW if unbounded self-recursion ever starts producing a WCET (which would be unsound)."
+    },
+    "mutual_recursion": {
+      "expected": null,
+      "status": "expect-unbounded",
+      "note": "Mutual recursion (ping<->pong), a 2-function call-graph cycle. Bounding multi-function SCCs is out of scope this phase, so the cycle is unbounded and NO WCET is produced even with recursion_bound pragmas. finalize() reports 'RECURSION: mutual recursion detected among {ping, pong}'. Refresh when mutual recursion is bounded."
     },
     "shiftloop": {
       "expected": 24,

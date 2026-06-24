@@ -13,6 +13,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -91,6 +92,44 @@ loadLoopBoundsFromJSON(const std::string &JSONPath) {
 
   outs() << "Loaded " << Bounds.size()
          << " loop bounds from JSON file: " << JSONPath << "\n";
+  return Bounds;
+}
+
+// Load recursion bounds (function name -> max total invocations) from the same
+// JSON file, under a "recursion_bounds" array of {"function", "bound"} objects.
+// Returns an empty map if the file or array is absent (recursion bounds are
+// optional; only recursive functions need them).
+static std::map<std::string, unsigned>
+loadRecursionBoundsFromJSON(const std::string &JSONPath) {
+  std::map<std::string, unsigned> Bounds;
+  if (JSONPath.empty())
+    return Bounds;
+
+  auto BufferOrErr = MemoryBuffer::getFile(JSONPath);
+  if (!BufferOrErr)
+    return Bounds;
+  auto JSONOrErr = json::parse(BufferOrErr.get()->getBuffer());
+  if (!JSONOrErr)
+    return Bounds;
+  json::Object *Root = JSONOrErr->getAsObject();
+  if (!Root)
+    return Bounds;
+  json::Array *Arr = Root->getArray("recursion_bounds");
+  if (!Arr)
+    return Bounds;
+
+  for (const auto &Item : *Arr) {
+    const json::Object *Obj = Item.getAsObject();
+    if (!Obj)
+      continue;
+    auto Func = Obj->getString("function");
+    auto Bound = Obj->getInteger("bound");
+    if (Func && Bound && *Bound > 0)
+      Bounds[Func->str()] = static_cast<unsigned>(*Bound);
+  }
+  if (!Bounds.empty())
+    outs() << "Loaded " << Bounds.size()
+           << " recursion bounds from JSON file: " << JSONPath << "\n";
   return Bounds;
 }
 
@@ -185,6 +224,12 @@ bool MachineLoopBoundAgregatorPass::runOnMachineFunction(MachineFunction &F) {
   std::vector<JSONLoopBound> JSONBounds =
       loadLoopBoundsFromJSON(LoopBoundsJSON);
   std::unordered_map<std::string, unsigned> JSONBoundsByLocation;
+
+  // Recursion bounds are function-keyed and module-wide, not per-loop. Load
+  // once and publish to the shared results so ProgramGraph::finalize can bound
+  // self-recursive call edges. (This pass runs per function; re-publishing the
+  // same map each time is idempotent.)
+  TAR.setRecursionBoundMap(loadRecursionBoundsFromJSON(LoopBoundsJSON));
 
   // Create a lookup map by location (filename:line) - ignore column as it may
   // vary

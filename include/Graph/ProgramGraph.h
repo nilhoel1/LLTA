@@ -218,7 +218,27 @@ public:
    * UnsoundExternalCallees.
    */
   bool finalize(MachineFunction &MF, MachineModuleInfo *MMI,
-                const llta::RTTarget *Target);
+                const llta::RTTarget *Target,
+                const std::map<std::string, unsigned> &RecursionBounds = {});
+
+  /// Names of self-recursive functions that were given a `recursion_bound` and
+  /// thereby bounded (the callee entry was turned into a bounded loop header).
+  const std::set<std::string> &getBoundedRecursionFunctions() const {
+    return BoundedRecursionFunctions;
+  }
+
+  /// Self-recursive functions reachable on the analysis path that have NO
+  /// supplied recursion bound: their call cycle is unbounded and the WCET does
+  /// not exist. Reported by finalize().
+  const std::set<std::string> &getUnboundedRecursionFunctions() const {
+    return UnboundedRecursionFunctions;
+  }
+
+  /// Functions found in a multi-function call-graph cycle (mutual recursion).
+  /// Bounding these is out of scope; their cycle is unbounded and reported.
+  const std::set<std::string> &getMutualRecursionFunctions() const {
+    return MutualRecursionFunctions;
+  }
 
   /// Names of reachable external callees whose body is absent from the IR and
   /// for which the target supplied no cost (so their cost was omitted). When
@@ -309,6 +329,11 @@ public:
    * getUnsoundExternalCallees).
    */
   std::set<std::string> UnsoundExternalCallees;
+
+  /// Recursion diagnostics filled by finalize() (see the getters above).
+  std::set<std::string> BoundedRecursionFunctions;
+  std::set<std::string> UnboundedRecursionFunctions;
+  std::set<std::string> MutualRecursionFunctions;
 
 private:
   /**
