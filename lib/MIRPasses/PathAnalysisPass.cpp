@@ -16,7 +16,9 @@
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <memory>
@@ -109,7 +111,17 @@ bool PathAnalysisPass::doFinalization(Module &M) {
 
   outs() << "Using ILP solver: " << SolverName << "\n";
   outs() << "\nSolving WCET ILP...\n";
+  // Time the full ILP cost of the selected backend: model construction plus
+  // optimization. This is the honest per-solver number for HiGHS-vs-Gurobi
+  // comparison. The line below is parseable (greppable) and purely additive --
+  // it does not touch the "WCET (...): N cycles" line the regression harness
+  // keys off.
+  auto SolveT0 = std::chrono::steady_clock::now();
   auto Result = Solver->solveWCET(AnalysisWorker.getGraph());
+  auto SolveT1 = std::chrono::steady_clock::now();
+  double SolveMs =
+      std::chrono::duration<double, std::milli>(SolveT1 - SolveT0).count();
+  outs() << "ILP solve time: " << format("%.3f", SolveMs) << " ms\n";
 
   outs() << "\n=== WCET Analysis Results ===\n";
   if (Result.WCET > 0) {
