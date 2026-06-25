@@ -199,8 +199,7 @@ AbstractHighsSolver::solveWCET(const AbstractStateGraph &ASG) {
   HighsModelStatus ModelStatus = highs.getModelStatus();
   if (ModelStatus == HighsModelStatus::kOptimal) {
     Result.WCET = highs.getObjectiveValue();
-    // Record per-node execution counts (parallels the Gurobi backend) so the
-    // solution can be inspected.
+    // Record per-node execution counts so the solution can be inspected.
     const std::vector<double> &ColValue = highs.getSolution().col_value;
     for (const auto &Pair : NodeCols) {
       if (Pair.second >= 0 && Pair.second < (int)ColValue.size() &&

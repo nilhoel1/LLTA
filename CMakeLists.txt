@@ -40,26 +40,6 @@ set(LLVM_LINK_COMPONENTS
 message (STATUS "${PROJECT_BINARY_DIR}$")
 message (STATUS "${PROJECT_SOURCE_DIR}$")
 
-# Make Gurobi optional
-option(LLTA_ENABLE_GUROBI "Enable Gurobi optimizer support" ON)
-
-if(LLTA_ENABLE_GUROBI)
-  find_package(GUROBI)
-  if(GUROBI_FOUND)
-    message(STATUS "Gurobi found - building with Gurobi optimizer support")
-    add_definitions(-DENABLE_GUROBI)
-    set(GUROBI_LIBS ${GUROBI_LIBRARIES})
-  else()
-    message(WARNING "Gurobi not found - building without Gurobi optimizer support")
-    set(GUROBI_INCLUDE_DIRS "")
-    set(GUROBI_LIBS "")
-  endif()
-else()
-  message(STATUS "Gurobi support disabled")
-  set(GUROBI_INCLUDE_DIRS "")
-  set(GUROBI_LIBS "")
-endif()
-
 # Make HiGHS optional
 option(LLTA_ENABLE_HIGHS "Enable HiGHS optimizer support" ON)
 
@@ -80,7 +60,7 @@ else()
   set(HIGHS_LIBS "")
 endif()
 
-include_directories(include ${LLVM_BINARY_DIR}/lib/Target/ARM ${LLVM_SOURCE_DIR}/lib/Target/ARM ${LLVM_BINARY_DIR}/lib/Target/RISCV ${LLVM_SOURCE_DIR}/lib/Target/RISCV ${LLVM_BINARY_DIR}/lib/Target/MSP430 ${LLVM_SOURCE_DIR}/lib/Target/MSP430 ${GUROBI_INCLUDE_DIRS} ${HIGHS_INCLUDE_DIRS})
+include_directories(include ${LLVM_BINARY_DIR}/lib/Target/ARM ${LLVM_SOURCE_DIR}/lib/Target/ARM ${LLVM_BINARY_DIR}/lib/Target/RISCV ${LLVM_SOURCE_DIR}/lib/Target/RISCV ${LLVM_BINARY_DIR}/lib/Target/MSP430 ${LLVM_SOURCE_DIR}/lib/Target/MSP430 ${HIGHS_INCLUDE_DIRS})
 
 add_llvm_tool(llta
   LLTA.cpp
@@ -97,7 +77,7 @@ add_subdirectory(lib)
 enable_testing()
 add_subdirectory(tests/unit)
 
-target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaTargets lltaGraph lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${GUROBI_LIBS} ${HIGHS_LIBS})
+target_link_libraries(llta PRIVATE lltaMPasses lltaUtility lltaTargets lltaGraph lltaILP lltaAnalysis lltaPipeline TimingAnalysisBase ${HIGHS_LIBS})
 
 # Configure RPATH to find shared libraries at runtime
 set(LLTA_RPATHS "")
@@ -106,13 +86,6 @@ if(HIGHS_FOUND)
   # Extract directory from the library path
   get_filename_component(HIGHS_LIB_DIR "${HIGHS_LIBRARIES}" DIRECTORY)
   list(APPEND LLTA_RPATHS "${HIGHS_LIB_DIR}")
-endif()
-
-if(GUROBI_FOUND)
-  # GUROBI_LIBRARIES is a list, take the last element which is usually the C library
-  list(GET GUROBI_LIBRARIES -1 GUROBI_MAIN_LIB)
-  get_filename_component(GUROBI_LIB_DIR "${GUROBI_MAIN_LIB}" DIRECTORY)
-  list(APPEND LLTA_RPATHS "${GUROBI_LIB_DIR}")
 endif()
 
 if(LLTA_RPATHS)

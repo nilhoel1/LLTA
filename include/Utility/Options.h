@@ -18,11 +18,6 @@ extern llvm::cl::opt<bool> DebugIR;
 extern llvm::cl::opt<std::string> LoopBoundsJSON;
 
 /**
- * ILP solver selection: "auto", "gurobi", or "highs"
- */
-extern llvm::cl::opt<std::string> ILPSolverOption;
-
-/**
  * Run purely as a compiler driver (like llc)
  */
 extern llvm::cl::opt<bool> LLCMode;

@@ -1,12 +1,9 @@
 #include "MIRPasses/PathAnalysisPass.h"
-#include "ILP/AbstractGurobiSolver.h"
 #include "ILP/AbstractHighsSolver.h"
 #include "ILP/AbstractILPSolver.h"
-#include "ILP/ILPSolver.h"
 #include "MIRPasses/StartFunction.h"
 #include "Targets/RTTarget.h"
 #include "TimingAnalysisResults.h"
-#include "Utility/Options.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
@@ -47,12 +44,10 @@ Function *PathAnalysisPass::getStartingFunction(CallGraph &CG) {
  *
  * Runs abstract interpretation over the pre-built ProgramGraph (MASG) to build
  * the AbstractStateGraph, then solves the WCET maximization ILP on it with the
- * selected abstract solver backend (-ilp-solver: auto / gurobi / highs).
+ * HiGHS backend.
  */
 bool PathAnalysisPass::doFinalization(Module &M) {
   outs() << "\n=== Path Analysis: Computing WCET via ILP ===\n";
-
-  ILPSolverType SolverType = parseILPSolverType(ILPSolverOption);
 
   const auto &Nodes = TAR.MASG.getNodes();
   outs() << "Total nodes: " << Nodes.size() << "\n";
@@ -74,33 +69,14 @@ bool PathAnalysisPass::doFinalization(Module &M) {
   // solve the WCET ILP on it.
   AnalysisWorker.run(TAR.MASG);
 
-  // Select the abstract solver backend.
+  // Solve the WCET ILP with the HiGHS backend.
   std::unique_ptr<AbstractILPSolver> Solver;
   std::string SolverName;
 
-  if (SolverType == ILPSolverType::Gurobi) {
-#ifdef ENABLE_GUROBI
-    Solver = std::make_unique<AbstractGurobiSolver>();
-    SolverName = "Gurobi";
-#else
-    outs() << "Gurobi not available, falling back to HiGHS\n";
-#endif
-  }
-
-  if (!Solver && (SolverType == ILPSolverType::HiGHS ||
-                  SolverType == ILPSolverType::Auto)) {
 #ifdef ENABLE_HIGHS
-    Solver = std::make_unique<AbstractHighsSolver>();
-    SolverName = "HiGHS";
+  Solver = std::make_unique<AbstractHighsSolver>();
+  SolverName = "HiGHS";
 #endif
-  }
-
-  if (!Solver) {
-#ifdef ENABLE_GUROBI
-    Solver = std::make_unique<AbstractGurobiSolver>();
-    SolverName = "Gurobi";
-#endif
-  }
 
   if (!Solver) {
     outs() << "Error: No ILP solver available. Cannot compute WCET.\n";

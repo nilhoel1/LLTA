@@ -23,7 +23,7 @@ data-only model). The reusable layer is `Graph/`, `Analysis/`, `MIRPasses/`,
 ## Prerequisites
 
 - **LLVM 20.1.8** — auto-downloaded by the build scripts.
-- **ILP solver** — Gurobi (commercial) or HiGHS (open source); either is fine.
+- **ILP solver** — HiGHS (open source); auto-downloaded by the build scripts.
 - **Clang**, **CMake**, **Ninja**, **curl & tar**.
 
 ## Quick start
@@ -58,8 +58,6 @@ Common options:
   there is no memory model and no library-call costing, so the result is an
   under-approximation. (Replaces the former `-dump-file`; the analyzer no longer
   parses objdump text.)
-- `-ilp-solver=<auto|gurobi|highs>` — abstract ILP backend (`auto` prefers
-  Gurobi if licensed, else HiGHS).
 - `-loop-bounds-json=<path>` — loop bounds from the clang plugin.
 
 MSP430(FR) target options (owned by the MSP430 target): `-fram-start=<hex>`,

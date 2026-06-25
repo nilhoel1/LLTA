@@ -15,11 +15,11 @@ triple** and described by an `RTTarget` (see [DESIGN_GUIDELINES.md](DESIGN_GUIDE
 | `include/Graph/`, `lib/Graph/` | `ProgramGraph` — the target-agnostic program-graph representation. |
 | `include/Analysis/`, `lib/Analysis/` | Reusable analysis framework: abstract-interpretation (`AbstractState`, `WorklistSolver`, `AbstractStateGraph`), pipeline modeling, and the generic cache analysis (`Cache/`). |
 | `include/MIRPasses/`, `lib/MIRPasses/` | The generic timing-analysis passes and the pipeline builder (`getTimingAnalysisPasses`). |
-| `include/ILP/`, `lib/ILP/` | Abstract ILP solvers (`AbstractGurobiSolver`, `AbstractHighsSolver`) + backend selection. |
+| `include/ILP/`, `lib/ILP/` | Abstract ILP solver (`AbstractHighsSolver`, HiGHS backend). |
 | `include/Pipeline/`, `lib/Pipeline/` | Hardware-pipeline simulation building blocks. |
 | `include/Utility/`, `lib/Utility/` | Generic CLI options and helpers. |
 | `include/TimingAnalysisResults.h` | Shared results container threaded through all passes; holds the active `RTTarget`. |
-| `cmake/` | Non-root CMake helpers (`FindGUROBI.cmake`, `FindHIGHS.cmake`). |
+| `cmake/` | Non-root CMake helpers (`FindHIGHS.cmake`). |
 | `tests/` | `regression_test.py`, MSP430 benchmarks (`tests/msp430/`), unit tests (`tests/unit/`). |
 | `clang-plugin/` | Clang plugin that extracts loop bounds. |
 
@@ -36,7 +36,7 @@ memory-model passes:
 5. **\<target memory-model passes\>** — `RTTarget::getMemoryModelPasses` (e.g. MSP430FR's FRAM wait-state + read-cache passes). No-ops unless configured.
 6. **MachineLoopBoundAgregatorPass** — loop bounds (SCEV / clang-plugin JSON).
 7. **FillMuGraphPass** — builds the `ProgramGraph` from `MBBLatencyMap` + bounds.
-8. **PathAnalysisPass** — abstract interpretation over the graph, then solves the WCET ILP (`-ilp-solver auto|gurobi|highs`).
+8. **PathAnalysisPass** — abstract interpretation over the graph, then solves the WCET ILP with the HiGHS backend.
 
 ## Build & test
 
