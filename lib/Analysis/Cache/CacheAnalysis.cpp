@@ -34,6 +34,8 @@ unsigned CacheAnalysis::process(AbstractState *State, const MachineInstr *MI) {
     }
     case CacheEvent::Barrier:
       CState->barrier();
+      if (Kind == AnalysisKind::Must)
+        Cost += E.Cost; // FRAM data-access wait state(s); May cost stays 0
       break;
     }
   }

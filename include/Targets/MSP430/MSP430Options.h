@@ -20,6 +20,11 @@ extern llvm::cl::opt<unsigned> FRAMWaitStates;
 /// for the FRAM fetch penalty. Requires -fram-wait-states > 0 and -fram-start.
 extern llvm::cl::opt<bool> FRAMCache;
 
+/// Cycles charged for one FRAM instruction-fetch cache miss / line fill
+/// (-fram-line-fill-cycles). Physically distinct from the per-word
+/// -fram-wait-states. FR5994 16 MHz default: 15. Used only with -fram-cache.
+extern llvm::cl::opt<unsigned> FRAMLineFillCycles;
+
 /// FRAM cache replacement-policy module: "unknown" (adversarial; sound for the
 /// undocumented FR5994 policy, default), "lru" or "fifo" (-fram-cache-policy).
 extern llvm::cl::opt<std::string> FRAMCachePolicy;

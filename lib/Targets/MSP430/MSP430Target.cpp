@@ -22,6 +22,15 @@ namespace llta {
 // FIXME Currently we assume CPUx on the MSP430, this should be corrected, when
 // llvm also supports the MSP430 CPUX. Issue with this is latencies only hold
 // for the upper 64kb of memory on MSP430 CPUx
+//
+// Soundness note (lower 64 KB / FR5994 FRAM): these are the SLAU445I 0-wait
+// architectural CPU-cycle counts. The "upper 64 kb" caveat is about CPUX
+// *extended* (20-bit) addressing of memory above 64 KB, which only *adds*
+// cycles; in the lower 64 KB FRAM (16-bit addressing, where our code runs) the
+// basic-form counts apply and are an upper bound on the true CPU cycles. All
+// FRAM memory-access overhead is charged separately and additively by the FRAM
+// fetch line-fill (-fram-line-fill-cycles) and data-access (-fram-wait-states)
+// penalties, so the base table stays a sound upper bound here.
 unsigned MSP430Target::getInstructionLatency(const MachineInstr &I) const {
   return getMSP430Latency(I);
 }

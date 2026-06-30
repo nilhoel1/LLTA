@@ -47,8 +47,9 @@ static void reportAlwaysMiss(MachineFunction &F, const TimingAnalysisResults &TA
                              const std::unordered_map<const MachineInstr *,
                                                       unsigned> &Words) {
   LRUPolicy MayPolicy(Geo.Ways);
-  FRAMAccessMapper Mapper(TAR, Geo, Words);
-  CacheAnalysis May(Geo, FRAMWaitStates, MayPolicy, Mapper, AnalysisKind::May);
+  FRAMAccessMapper Mapper(TAR, Geo, Words, /*DataAccessCost=*/FRAMWaitStates);
+  CacheAnalysis May(Geo, FRAMLineFillCycles, MayPolicy, Mapper,
+                    AnalysisKind::May);
 
   AbstractStateGraph ASG;
   WorklistSolver Solver(May, ASG);
@@ -111,8 +112,9 @@ bool FRAMCacheAnalysisPass::runOnMachineFunction(MachineFunction &F) {
   // Assemble the generic engine from the modular parts. Order of declaration
   // matters: Policy/Mapper/Words must outlive the analysis that references them.
   std::unique_ptr<ReplacementPolicy> Policy = makeMustPolicy(Geo);
-  FRAMAccessMapper Mapper(TAR, Geo, Words);
-  CacheAnalysis Must(Geo, FRAMWaitStates, *Policy, Mapper, AnalysisKind::Must);
+  FRAMAccessMapper Mapper(TAR, Geo, Words, /*DataAccessCost=*/FRAMWaitStates);
+  CacheAnalysis Must(Geo, FRAMLineFillCycles, *Policy, Mapper,
+                     AnalysisKind::Must);
 
   // Run the cross-block fixpoint through the abstract-interpretation framework.
   AbstractStateGraph ASG;
@@ -135,7 +137,8 @@ bool FRAMCacheAnalysisPass::runOnMachineFunction(MachineFunction &F) {
     outs() << "[fram-cache] " << F.getName() << ": +" << FuncPenalty
            << " cycle(s) (policy=" << Policy->name() << ", " << Geo.NumSets
            << " set(s) x " << Geo.Ways << " way(s), " << Geo.LineBytes
-           << "B lines, " << FRAMWaitStates << " wait state(s)/miss)\n";
+           << "B lines, " << FRAMLineFillCycles << " cycle(s)/miss line-fill, "
+           << FRAMWaitStates << " wait state(s)/data access)\n";
 
   // --- May-analysis: always-miss diagnostics (no WCET impact). ---
   if (FRAMCacheVerbose)

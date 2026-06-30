@@ -1,6 +1,7 @@
 #include "Targets/MSP430/FRAMWaitStatePass.h"
 #include "Targets/MSP430/MSP430Options.h"
 #include "TimingAnalysisResults.h"
+#include "Utility/DataMemoryAccess.h"
 #include "Utility/InstructionWords.h"
 #include "Utility/Options.h"
 
@@ -44,6 +45,13 @@ bool FRAMWaitStatePass::runOnMachineFunction(MachineFunction &F) {
   for (auto &MBB : F) {
     unsigned Penalty = 0;
     for (auto &MI : MBB) {
+      // Data accesses: any access not provably to non-wait-state memory
+      // (SRAM/stack) is assumed FRAM and charged the per-word wait state.
+      // Charged independently of the fetch address — the data target may be in
+      // FRAM regardless of where the code itself is fetched from.
+      Penalty += FRAMWaitStates * framDataAccessWords(MI);
+
+      // Instruction fetch: wait state per 16-bit code word fetched from FRAM.
       auto It = Words.find(&MI);
       if (It == Words.end())
         continue;

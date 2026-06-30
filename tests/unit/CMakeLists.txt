@@ -1,6 +1,10 @@
 # Standalone unit tests for the modular cache analysis (no GoogleTest).
+# CacheAnalysis.cpp is compiled in directly so its cost engine can be tested
+# with a stub mapper (it treats the MachineInstr as opaque in must mode, so no
+# CodeGen link deps are pulled in).
 add_llvm_executable(LLTACacheModuleTests
   CacheModuleTests.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/Analysis/Cache/CacheAnalysis.cpp
   PARTIAL_SOURCES_INTENDED
 )
 # Header-only modules pull in llvm/ADT/StringRef.h; link Support for its symbols.
@@ -49,7 +53,8 @@ add_llvm_executable(LLTAMachineFunctionGraphTests
   MachineFunctionGraphTests.cpp
   PARTIAL_SOURCES_INTENDED
 )
-target_link_libraries(LLTAMachineFunctionGraphTests PRIVATE lltaGraph)
+# lltaUtility provides framDataAccessWords (the FRAM data-access classifier).
+target_link_libraries(LLTAMachineFunctionGraphTests PRIVATE lltaGraph lltaUtility)
 add_test(NAME LLTAMachineFunctionGraphTests
   COMMAND LLTAMachineFunctionGraphTests)
 add_dependencies(check-llta-cfg LLTAMachineFunctionGraphTests)

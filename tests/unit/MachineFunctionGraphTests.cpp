@@ -26,19 +26,26 @@
 //===----------------------------------------------------------------------===//
 
 #include "Graph/ProgramGraph.h"
+#include "Utility/DataMemoryAccess.h"
 
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/PseudoSourceValueManager.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/TargetRegistry.h"
 
 #include <iostream>
@@ -201,6 +208,28 @@ struct MFFixture {
     MF->insert(MF->end(), MBB);
     return MBB;
   }
+
+  // A bare MachineInstr carrying the given MCID flags (e.g. MayLoad). The desc
+  // must outlive the instruction (MachineInstr stores a pointer to it), so the
+  // caller passes a long-lived MCInstrDesc.
+  MachineInstr *makeInstr(const MCInstrDesc &Desc) {
+    return MF->CreateMachineInstr(Desc, DebugLoc());
+  }
+
+  // A provably-stack (SRAM) load memory operand.
+  MachineMemOperand *stackMMO() {
+    return MF->getMachineMemOperand(
+        MachinePointerInfo(MF->getPSVManager().getStack()),
+        MachineMemOperand::MOLoad, /*Size=*/2, Align(2));
+  }
+
+  // A memory operand at an unknown address (no PseudoSourceValue, no IR value):
+  // cannot be proven non-FRAM.
+  MachineMemOperand *unknownMMO() {
+    return MF->getMachineMemOperand(MachinePointerInfo(),
+                                    MachineMemOperand::MOLoad, /*Size=*/2,
+                                    Align(2));
+  }
 };
 
 } // namespace
@@ -258,9 +287,53 @@ static void testNoReturnBlockMachineFunction() {
   }
 }
 
+// framDataAccessWords: the soundness classifier shared by the FRAM cache and
+// no-cache passes. Provably-stack accesses are free; anything not proven
+// non-wait-state (unknown address, or no memoperand info) is assumed FRAM and
+// charged; a non-memory instruction is free.
+static void testFramDataAccessWords() {
+  MFFixture Fx;
+
+  // Long-lived descs (MachineInstr keeps a pointer). Field 10 is the flag word.
+  const MCInstrDesc LoadDesc = {
+      TargetOpcode::COPY, 0, 0, 0, 0, 0, 0, 0, 0, (1ULL << MCID::MayLoad), 0};
+  const MCInstrDesc RmwDesc = {
+      TargetOpcode::COPY, 0,
+      0,                  0,
+      0,                  0,
+      0,                  0,
+      0,                  (1ULL << MCID::MayLoad) | (1ULL << MCID::MayStore),
+      0};
+  const MCInstrDesc PlainDesc = {TargetOpcode::COPY, 0, 0, 0, 0, 0,
+                                 0,                  0, 0, 0, 0};
+
+  // mayLoad + provably-stack operand -> not charged.
+  MachineInstr *Stack = Fx.makeInstr(LoadDesc);
+  Stack->addMemOperand(*Fx.MF, Fx.stackMMO());
+  CHECK(framDataAccessWords(*Stack) == 0u);
+
+  // mayLoad + unprovable (unknown) operand -> assume FRAM -> charged once.
+  MachineInstr *Unknown = Fx.makeInstr(LoadDesc);
+  Unknown->addMemOperand(*Fx.MF, Fx.unknownMMO());
+  CHECK(framDataAccessWords(*Unknown) == 1u);
+
+  // mayLoad + NO memoperand info -> unknown address -> charged.
+  MachineInstr *NoInfo = Fx.makeInstr(LoadDesc);
+  CHECK(framDataAccessWords(*NoInfo) == 1u);
+
+  // read-modify-write with no memoperand info -> load + store both charged.
+  MachineInstr *Rmw = Fx.makeInstr(RmwDesc);
+  CHECK(framDataAccessWords(*Rmw) == 2u);
+
+  // No memory access -> free.
+  MachineInstr *Plain = Fx.makeInstr(PlainDesc);
+  CHECK(framDataAccessWords(*Plain) == 0u);
+}
+
 int main() {
   testEmptyMachineFunction();
   testNoReturnBlockMachineFunction();
+  testFramDataAccessWords();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";

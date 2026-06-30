@@ -29,6 +29,16 @@ cl::opt<bool> FRAMCache(
              "and -fram-start."),
     cl::cat(MSP430Cat));
 
+cl::opt<unsigned> FRAMLineFillCycles(
+    "fram-line-fill-cycles", cl::init(15),
+    cl::desc("Cycles charged for a single FRAM instruction-fetch cache miss "
+             "(a full cache-line fill). Physically distinct from "
+             "-fram-wait-states (per-word direct/data access): a miss refills a "
+             "whole line, not one word. FR5994 16 MHz default: 15 (8-byte line "
+             "= 4 words + controller refill overhead). Used only when "
+             "-fram-cache is enabled."),
+    cl::cat(MSP430Cat));
+
 cl::opt<std::string> FRAMCachePolicy(
     "fram-cache-policy", cl::init("unknown"),
     cl::desc("FRAM cache replacement-policy module: 'unknown' (adversarial, "

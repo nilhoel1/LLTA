@@ -7,13 +7,18 @@
 //     in both must- and may-analysis directions,
 //   - the generic CacheState (multi-set, barrier, join).
 //
-// The CacheAnalysis engine and FRAMAccessMapper need a live MachineInstr and
-// are covered by the end-to-end FreeRTOS run instead.
+// The FRAMAccessMapper needs a live MachineInstr (covered by the
+// MachineFunctionGraphTests framDataAccessWords test and the end-to-end run),
+// but the CacheAnalysis cost engine is exercised here with a stub mapper that
+// emits chosen events, so the miss/data-access charging is locked in directly.
 //
 // Run via CTest (`ctest -R LLTACacheModuleTests`) or the `check-llta-cache`
 // build target. Exits non-zero if any check fails.
 //===----------------------------------------------------------------------===//
 
+#include "Analysis/Cache/CacheAccessMapper.h"
+#include "Analysis/Cache/CacheAnalysis.h"
+#include "Analysis/Cache/CacheEvent.h"
 #include "Analysis/Cache/CacheGeometry.h"
 #include "Analysis/Cache/CacheState.h"
 #include "Analysis/Cache/ReplacementPolicy.h"
@@ -159,12 +164,70 @@ static void testCacheState() {
   CHECK(C.access(0x4010)); // original still has 0x4010 resident -> hit
 }
 
+// A mapper that ignores the (possibly null) MachineInstr and emits a fixed
+// event list, so the CacheAnalysis cost engine can be unit-tested without a
+// live MachineInstr.
+namespace {
+class StubMapper : public CacheAccessMapper {
+public:
+  SmallVector<CacheEvent, 4> Events;
+  void mapEvents(const MachineInstr *, SmallVectorImpl<CacheEvent> &Out) override {
+    Out.append(Events.begin(), Events.end());
+  }
+};
+} // namespace
+
+// (a) A fetch miss costs the full line-fill penalty (MissPenalty), once per
+// line; a subsequent access to the now-resident line is a free hit.
+static void testMissCostsLineFill() {
+  CacheGeometry G(/*sets=*/2, /*ways=*/2, /*line=*/8);
+  LRUPolicy P(/*ways=*/2);
+  StubMapper M;
+  M.Events = {CacheEvent::access(0x4000)};
+  CacheAnalysis A(G, /*MissPenalty=*/15, P, M, AnalysisKind::Must);
+  auto S = A.getInitialState();
+  CHECK_EQ(A.process(S.get(), nullptr), 15u); // cold miss -> full line fill
+  CHECK_EQ(A.process(S.get(), nullptr), 0u);  // resident -> hit, no penalty
+}
+
+// (b) An unproven/FRAM data access (a Barrier carrying the wait-state cost) is
+// charged in the must (WCET) direction and costs nothing in the may direction.
+static void testDataAccessCharged() {
+  CacheGeometry G(/*sets=*/2, /*ways=*/2, /*line=*/8);
+  LRUPolicy P(/*ways=*/2);
+  StubMapper M;
+  M.Events = {CacheEvent::barrier(/*Cost=*/3)};
+
+  CacheAnalysis Must(G, /*MissPenalty=*/15, P, M, AnalysisKind::Must);
+  auto SM = Must.getInitialState();
+  CHECK_EQ(Must.process(SM.get(), nullptr), 3u); // data wait state charged
+
+  CacheAnalysis May(G, /*MissPenalty=*/15, P, M, AnalysisKind::May);
+  auto SY = May.getInitialState();
+  CHECK_EQ(May.process(SY.get(), nullptr), 0u); // may direction: never a cost
+}
+
+// (c) Model-off shape: a zero line-fill penalty and zero-cost barrier add
+// nothing, mirroring the disabled-model knobs.
+static void testModelOffShapeIsZero() {
+  CacheGeometry G(/*sets=*/2, /*ways=*/2, /*line=*/8);
+  LRUPolicy P(/*ways=*/2);
+  StubMapper M;
+  M.Events = {CacheEvent::access(0x4000), CacheEvent::barrier(/*Cost=*/0)};
+  CacheAnalysis A(G, /*MissPenalty=*/0, P, M, AnalysisKind::Must);
+  auto S = A.getInitialState();
+  CHECK_EQ(A.process(S.get(), nullptr), 0u);
+}
+
 int main() {
   testGeometry();
   testUnknownPolicy();
   testLRUPolicy();
   testFIFOPolicy();
   testCacheState();
+  testMissCostsLineFill();
+  testDataAccessCharged();
+  testModelOffShapeIsZero();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";
