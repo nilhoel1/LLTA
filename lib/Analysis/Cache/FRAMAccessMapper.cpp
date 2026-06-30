@@ -1,6 +1,5 @@
 #include "Analysis/Cache/FRAMAccessMapper.h"
 #include "TimingAnalysisResults.h"
-#include "Utility/DataMemoryAccess.h"
 
 #include "llvm/CodeGen/MachineInstr.h"
 
@@ -22,11 +21,14 @@ void FRAMAccessMapper::mapEvents(const MachineInstr *MI,
     }
   }
 
-  // 2. Data access: a provably stack/SRAM access is transparent (0 words);
-  //    anything not proven non-wait-state is assumed FRAM — emit a Barrier that
-  //    both wipes the abstract cache state and charges the wait-state cost.
-  if (unsigned N = framDataAccessWords(*MI))
-    Out.push_back(CacheEvent::barrier(DataAccessCost * N));
+  // 2. Data access: a provably non-wait-state (SRAM/stack) access is
+  //    transparent (absent from DataWords); anything not proven non-wait-state
+  //    is assumed FRAM — emit a Barrier that both wipes the abstract cache state
+  //    and charges the wait-state cost. DataWords is precomputed per function
+  //    (Utility/InstructionWords.h) with target-independent address resolution.
+  auto DIt = DataWords.find(MI);
+  if (DIt != DataWords.end())
+    Out.push_back(CacheEvent::barrier(DataAccessCost * DIt->second));
 }
 
 } // namespace llvm

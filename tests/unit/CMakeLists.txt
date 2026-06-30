@@ -39,6 +39,7 @@ add_custom_target(check-llta-cfg
 # no-return border cases unreachable through the C->ELF toolchain). Needs the
 # LLVM CodeGen stack to fabricate a MachineFunction with a Bogus target.
 set(LLVM_LINK_COMPONENTS
+  Analysis
   CodeGen
   CodeGenTypes
   Core

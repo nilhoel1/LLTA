@@ -45,9 +45,12 @@ static std::unique_ptr<ReplacementPolicy> makeMustPolicy(const CacheGeometry &Ge
 static void reportAlwaysMiss(MachineFunction &F, const TimingAnalysisResults &TAR,
                              CacheGeometry Geo,
                              const std::unordered_map<const MachineInstr *,
-                                                      unsigned> &Words) {
+                                                      unsigned> &Words,
+                             const std::unordered_map<const MachineInstr *,
+                                                      unsigned> &DataWords) {
   LRUPolicy MayPolicy(Geo.Ways);
-  FRAMAccessMapper Mapper(TAR, Geo, Words, /*DataAccessCost=*/FRAMWaitStates);
+  FRAMAccessMapper Mapper(TAR, Geo, Words, DataWords,
+                          /*DataAccessCost=*/FRAMWaitStates);
   CacheAnalysis May(Geo, FRAMLineFillCycles, MayPolicy, Mapper,
                     AnalysisKind::May);
 
@@ -104,15 +107,19 @@ bool FRAMCacheAnalysisPass::runOnMachineFunction(MachineFunction &F) {
     return false;
   }
 
-  // Per-instruction fetch word counts (shared with FRAMWaitStatePass).
+  // Per-instruction fetch and FRAM data-access word counts (shared with
+  // FRAMWaitStatePass). DataWords resolves data addresses once per function.
   std::unordered_map<const MachineInstr *, unsigned> Words =
       computeInstructionWords(F, TAR);
+  std::unordered_map<const MachineInstr *, unsigned> DataWords =
+      computeDataAccessWords(F, TAR);
 
   // --- Must-analysis: the cache-aware fetch penalty fed into the WCET. ---
   // Assemble the generic engine from the modular parts. Order of declaration
   // matters: Policy/Mapper/Words must outlive the analysis that references them.
   std::unique_ptr<ReplacementPolicy> Policy = makeMustPolicy(Geo);
-  FRAMAccessMapper Mapper(TAR, Geo, Words, /*DataAccessCost=*/FRAMWaitStates);
+  FRAMAccessMapper Mapper(TAR, Geo, Words, DataWords,
+                          /*DataAccessCost=*/FRAMWaitStates);
   CacheAnalysis Must(Geo, FRAMLineFillCycles, *Policy, Mapper,
                      AnalysisKind::Must);
 
@@ -142,7 +149,7 @@ bool FRAMCacheAnalysisPass::runOnMachineFunction(MachineFunction &F) {
 
   // --- May-analysis: always-miss diagnostics (no WCET impact). ---
   if (FRAMCacheVerbose)
-    reportAlwaysMiss(F, TAR, Geo, Words);
+    reportAlwaysMiss(F, TAR, Geo, Words, DataWords);
 
   return false;
 }

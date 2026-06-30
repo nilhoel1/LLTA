@@ -1,7 +1,6 @@
 #include "Targets/MSP430/FRAMWaitStatePass.h"
 #include "Targets/MSP430/MSP430Options.h"
 #include "TimingAnalysisResults.h"
-#include "Utility/DataMemoryAccess.h"
 #include "Utility/InstructionWords.h"
 #include "Utility/Options.h"
 
@@ -31,11 +30,15 @@ bool FRAMWaitStatePass::runOnMachineFunction(MachineFunction &F) {
 
   const uint64_t FramStart = TAR.getFRAMStart();
 
-  // Per-instruction 16-bit fetch word counts (shared with the cache analysis).
+  // Per-instruction 16-bit fetch word counts (shared with the cache analysis),
+  // plus FRAM data-access word counts (target-independent address resolution,
+  // computed once per function).
   std::unordered_map<const MachineInstr *, unsigned> Words =
       computeInstructionWords(F, TAR);
   if (Words.empty())
     return false;
+  std::unordered_map<const MachineInstr *, unsigned> DataWords =
+      computeDataAccessWords(F, TAR);
 
   // Read-modify-write the accumulated MBBLatencyMap. InstructionLatencyPass
   // runs earlier in the pipeline for the same function, so an entry already
@@ -49,7 +52,9 @@ bool FRAMWaitStatePass::runOnMachineFunction(MachineFunction &F) {
       // (SRAM/stack) is assumed FRAM and charged the per-word wait state.
       // Charged independently of the fetch address — the data target may be in
       // FRAM regardless of where the code itself is fetched from.
-      Penalty += FRAMWaitStates * framDataAccessWords(MI);
+      auto DIt = DataWords.find(&MI);
+      if (DIt != DataWords.end())
+        Penalty += FRAMWaitStates * DIt->second;
 
       // Instruction fetch: wait state per 16-bit code word fetched from FRAM.
       auto It = Words.find(&MI);

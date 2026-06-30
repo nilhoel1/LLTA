@@ -1,6 +1,9 @@
 #include "Utility/InstructionWords.h"
 #include "Targets/RTTarget.h"
 #include "TimingAnalysisResults.h"
+#include "Utility/DataMemoryAccess.h"
+
+#include "llvm/IR/GlobalValue.h"
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -46,6 +49,27 @@ computeInstructionWords(const MachineFunction &MF,
     Words[Resolved[I].second] = W;
   }
   return Words;
+}
+
+std::unordered_map<const MachineInstr *, unsigned>
+computeDataAccessWords(const MachineFunction &MF,
+                       const TimingAnalysisResults &TAR) {
+  // Resolve a global to its absolute address via the ELF-derived symbol table.
+  // Empty when no ELF was linked, so this returns std::nullopt for everything
+  // and the classification falls back to the conservative default.
+  const uint64_t FramStart = TAR.getFRAMStart();
+  auto Resolve = [&TAR](const GlobalValue &GV) -> std::optional<uint64_t> {
+    if (const auto *Obj = TAR.getDataObject(GV.getName()))
+      return Obj->Address;
+    return std::nullopt;
+  };
+
+  std::unordered_map<const MachineInstr *, unsigned> DataWords;
+  for (const auto &MBB : MF)
+    for (const auto &MI : MBB)
+      if (unsigned N = framDataAccessWords(MI, FramStart, Resolve))
+        DataWords[&MI] = N;
+  return DataWords;
 }
 
 } // namespace llvm

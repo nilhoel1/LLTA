@@ -75,3 +75,67 @@ policy is deliberately adversarial). Line-fill was **not** tuned to a target —
 - `LLTAMachineFunctionGraphTests` — `framDataAccessWords` classification:
   stack ⇒ 0, unknown/no-memoperand ⇒ charged, load+store ⇒ 2, non-memory ⇒ 0.
 - Regression suite stays all-GREEN (model-off invariant).
+
+---
+
+# Tightening: target-independent data-address resolution
+
+The soundness fix above made the model never under-estimate, but it
+**over-estimated** data accesses: any access not provably *stack* was assumed
+FRAM and charged a wait state, even when it targets a global in SRAM
+(`.data`/`.bss`, below `FRAMStart`). This section records how that pessimism is
+removed without weakening soundness.
+
+## What is now proven SRAM
+
+A data access keeps a link to its IR object after instruction selection
+(`MachineMemOperand::getValue()`). The classifier now recovers it
+target-independently — `getValue()` → `getUnderlyingObject()`
+(`llvm/Analysis/ValueTracking.h`) — and drops the FRAM charge when the base is:
+
+- an `AllocaInst` (stack/SRAM), or
+- a `GlobalValue` whose **link address** (looked up by name in the ELF-derived
+  `TAR.DataObjects`) is `< FRAMStart`.
+
+Everything else — null `getValue()`, an unknown global (not in the symbol
+table), an address `>= FRAMStart` (e.g. `.rodata` const tables), or a
+computed/non-global base — is charged exactly as before. The resolution runs
+once per function (`computeDataAccessWords`, `Utility/InstructionWords.cpp`); the
+new `framDataAccessWords(MI, FRAMStart, Resolve)` overload
+(`Utility/DataMemoryAccess.cpp`) does the per-operand classification.
+
+## Why it stays sound
+
+- We drop a charge **only on proof** of SRAM/stack residency; every unproven
+  case stays conservative.
+- **No new cache assumption.** Provably-stack accesses already produced 0 words
+  ⇒ no `Barrier` and no cost in the cache path. Enlarging the "provably SRAM"
+  set just lets more accesses take that same, already-shipped treatment. An SRAM
+  access physically cannot fill or evict the FRAM instruction-fetch cache
+  (separate memory, not behind the cache), so not flushing is correct.
+- **Model-off / no-ELF unchanged.** With no ELF, `TAR.DataObjects` is empty, the
+  resolver returns "unknown" for everything, and the counts equal the
+  conservative overload's. Regression stays all-GREEN; cnt/cover unchanged.
+
+## Alternatives rejected (target-independence constraint)
+
+- *IR-level constant propagation* (SCCP/InstCombine/CVP) cannot supply a global's
+  link address — it is a relocation, never an IR constant — and adding an IR pass
+  risks perturbing the byte-for-byte model-off baselines. Not adopted.
+- *Decoding the address from the ELF instruction operand*
+  (`MCInstrAnalysis::evaluateMemoryOperandAddress`) is precise but needs a
+  target-specific `MSP430MCInstrAnalysis` (MSP430 registers none), so it breaks
+  target-independence; its coverage overlaps the IR-value path anyway. Left as a
+  clean future opt-in.
+
+## Validation (`-fram-start=0x4000 -fram-wait-states=1 -fram-cache`)
+
+| bench   | measured cyc16 | sound (pessimistic) | after resolution | sound? |
+|---------|----------------|---------------------|------------------|--------|
+| bs      | 702            | 993                 | 833              | yes (tighter) |
+| fibcall | 522            | 1317                | 1317             | yes (no globals) |
+| crc     | 113133         | 417633              | 397770           | yes (tighter) |
+
+`after >= measured` for all; bs and crc tightened, fibcall has no array globals
+so it is unchanged (as predicted). bs dropping confirms the MSP430 backend
+preserves `MMO->getValue()` for global accesses, so the mechanism is active.

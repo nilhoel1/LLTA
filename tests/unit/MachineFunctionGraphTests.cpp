@@ -43,6 +43,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCInstrDesc.h"
@@ -230,6 +231,21 @@ struct MFFixture {
                                     MachineMemOperand::MOLoad, /*Size=*/2,
                                     Align(2));
   }
+
+  // A named external global (a real IR value), owned by the module.
+  GlobalVariable *makeGlobal(StringRef Name) {
+    return new GlobalVariable(M, Type::getInt16Ty(Ctx), /*isConstant=*/false,
+                              GlobalValue::ExternalLinkage, /*Init=*/nullptr,
+                              Name);
+  }
+
+  // A memory operand carrying a global IR value, to exercise target-independent
+  // address resolution (getValue -> getUnderlyingObject -> GlobalValue).
+  MachineMemOperand *globalMMO(const GlobalValue *GV) {
+    return MF->getMachineMemOperand(MachinePointerInfo(GV),
+                                    MachineMemOperand::MOLoad, /*Size=*/2,
+                                    Align(2));
+  }
 };
 
 } // namespace
@@ -330,10 +346,59 @@ static void testFramDataAccessWords() {
   CHECK(framDataAccessWords(*Plain) == 0u);
 }
 
+// framDataAccessWords with target-independent address resolution: a data access
+// whose underlying object is a global proven below FRAMStart (SRAM) is dropped;
+// a global at/above FRAMStart, a global with an unknown address, or no IR object
+// stays conservatively charged. The plain overload is unaffected.
+static void testFramDataAccessWordsResolved() {
+  MFFixture Fx;
+  const MCInstrDesc LoadDesc = {
+      TargetOpcode::COPY, 0, 0, 0, 0, 0, 0, 0, 0, (1ULL << MCID::MayLoad), 0};
+
+  const uint64_t FRAMStart = 0x4000;
+  auto Resolve = [](const GlobalValue &GV) -> std::optional<uint64_t> {
+    if (GV.getName() == "sram_g")
+      return uint64_t(0x1C00); // below FRAMStart -> SRAM
+    if (GV.getName() == "fram_g")
+      return uint64_t(0x4400); // above FRAMStart -> FRAM
+    return std::nullopt;        // unknown address
+  };
+
+  // Global proven below FRAMStart -> SRAM -> not charged...
+  GlobalVariable *SramG = Fx.makeGlobal("sram_g");
+  MachineInstr *Sram = Fx.makeInstr(LoadDesc);
+  Sram->addMemOperand(*Fx.MF, Fx.globalMMO(SramG));
+  CHECK(framDataAccessWords(*Sram, FRAMStart, Resolve) == 0u);
+  // ...while the conservative overload (no resolution) still charges it.
+  CHECK(framDataAccessWords(*Sram) == 1u);
+
+  // Global at/above FRAMStart -> FRAM -> charged.
+  GlobalVariable *FramG = Fx.makeGlobal("fram_g");
+  MachineInstr *Fram = Fx.makeInstr(LoadDesc);
+  Fram->addMemOperand(*Fx.MF, Fx.globalMMO(FramG));
+  CHECK(framDataAccessWords(*Fram, FRAMStart, Resolve) == 1u);
+
+  // Global whose address is unknown (resolver returns nullopt) -> charged.
+  GlobalVariable *UnkG = Fx.makeGlobal("unknown_g");
+  MachineInstr *Unk = Fx.makeInstr(LoadDesc);
+  Unk->addMemOperand(*Fx.MF, Fx.globalMMO(UnkG));
+  CHECK(framDataAccessWords(*Unk, FRAMStart, Resolve) == 1u);
+
+  // Stack operand -> still 0 under the resolver overload.
+  MachineInstr *Stack = Fx.makeInstr(LoadDesc);
+  Stack->addMemOperand(*Fx.MF, Fx.stackMMO());
+  CHECK(framDataAccessWords(*Stack, FRAMStart, Resolve) == 0u);
+
+  // No memoperand info -> unknown address -> charged even with a resolver.
+  MachineInstr *NoInfo = Fx.makeInstr(LoadDesc);
+  CHECK(framDataAccessWords(*NoInfo, FRAMStart, Resolve) == 1u);
+}
+
 int main() {
   testEmptyMachineFunction();
   testNoReturnBlockMachineFunction();
   testFramDataAccessWords();
+  testFramDataAccessWordsResolved();
 
   if (Failures == 0) {
     std::cout << "All " << Checks << " checks passed.\n";
