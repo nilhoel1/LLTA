@@ -5,6 +5,12 @@
 CROSS_COMPILER_DIR = ../../externalDeps/MSP430/msp430-gcc/bin
 CROSS_COMPILER = $(CROSS_COMPILER_DIR)/msp430-elf
 IR_TOOLCHAIN = ../../build/bin
+# The analyzer binary. Both llta stages (the -llc asm pass and the WCET
+# analysis) list this as a prerequisite so that rebuilding llta re-runs them:
+# without it, make keys only off the source-derived inputs and happily serves a
+# stale .S/.wcet produced by an older binary (which once masked a baseline drift
+# as a false GREEN/YELLOW).
+LLTA_BIN = $(IR_TOOLCHAIN)/llta
 MSP_SUPPORT_FILES = ../../externalDeps/MSP430/msp430-gcc-support-files/include
 MSP_DRIVERLIB = ../../externalDeps/MSP430/msp430-driverlib
 
@@ -66,7 +72,7 @@ $(BUILD_DIR)/$(TEST).opt.ll: $(BUILD_DIR)/$(TEST).ll
 	@$(IR_TOOLCHAIN)/opt $(OPTFLAGS) $< -o $@
 
 # 3. LLTA Transformation (LLC Mode - Call Splitter) -> Assembly
-$(BUILD_DIR)/$(TEST).S: $(BUILD_DIR)/$(TEST).opt.ll
+$(BUILD_DIR)/$(TEST).S: $(BUILD_DIR)/$(TEST).opt.ll $(LLTA_BIN)
 	@echo "LLTA-LLC $< -> $@"
 	@$(IR_TOOLCHAIN)/llta -llc $(LLCFLAGS) $< -o $@
 	@echo "FIXUP    $@"
@@ -122,7 +128,7 @@ $(BUILD_DIR)/$(TEST).loop_bounds.json: $(SOURCE) | $(BUILD_DIR)
 	fi
 
 # 9. LLTA WCET Analysis (full analysis with loop bounds, driven from the ELF)
-$(BUILD_DIR)/$(TEST).wcet: $(BUILD_DIR)/$(TEST).opt.ll $(BUILD_DIR)/$(TEST).elf $(BUILD_DIR)/$(TEST).loop_bounds.json
+$(BUILD_DIR)/$(TEST).wcet: $(BUILD_DIR)/$(TEST).opt.ll $(BUILD_DIR)/$(TEST).elf $(BUILD_DIR)/$(TEST).loop_bounds.json $(LLTA_BIN)
 	@echo "LLTA-WCET $< -> $@"
 	@cd $(BUILD_DIR) && \
 		$(abspath $(IR_TOOLCHAIN))/llta \
