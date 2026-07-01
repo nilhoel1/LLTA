@@ -325,6 +325,21 @@ public:
   std::vector<std::pair<unsigned, std::string>> ExternalSymbolCallSites;
 
   /**
+   * Render info for body-less external/ABI calls (e.g. \c __mspabi_*), filled by
+   * finalize(): the calling node, the callee symbol, and the cycle cost charged
+   * to the caller. \c Costed is false when no cost model existed (the call is
+   * then unsound). These calls have no block of their own --- their cost is
+   * folded into the caller --- so dump2Dot uses this to draw them explicitly.
+   */
+  struct ExternalCallRender {
+    unsigned CallNode;
+    std::string Name;
+    unsigned Cost;
+    bool Costed;
+  };
+  std::vector<ExternalCallRender> ExternalCallRenders;
+
+  /**
    * Reachable body-less external callees that could not be costed (see
    * getUnsoundExternalCallees).
    */

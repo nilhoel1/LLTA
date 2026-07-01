@@ -252,6 +252,33 @@ bool ProgramGraph::dump2Dot(StringRef FileName) {
     }
   }
 
+  // Body-less external/ABI calls (e.g. __mspabi_* runtime helpers) have no
+  // block of their own -- their cost is folded into the calling block -- so
+  // they are otherwise invisible here. Draw each explicitly as a distinct
+  // dashed node with a "calls" edge from its caller, showing where a runtime
+  // helper is invoked and the cycle cost it contributes (orange = costed;
+  // red = no cost model, i.e. an unsound under-count).
+  if (!ExternalCallRenders.empty()) {
+    File << "\n  // Body-less external/ABI call sites\n";
+    unsigned ExtIdx = 0;
+    for (const auto &EC : ExternalCallRenders) {
+      // Skip calls whose caller block was pruned as unreachable.
+      if (Nodes.find(EC.CallNode) == Nodes.end())
+        continue;
+      std::string ExtId = "ext" + std::to_string(ExtIdx++);
+      File << "  " << ExtId
+           << " [shape=box,style=\"filled,dashed\",fillcolor="
+           << (EC.Costed ? "orange" : "red") << ",label=\"" << EC.Name;
+      if (EC.Costed)
+        File << "\\ncall +" << EC.Cost << " cyc";
+      else
+        File << "\\n(no cost model - unsound)";
+      File << "\"];\n";
+      File << "  " << EC.CallNode << " -> " << ExtId
+           << " [style=dashed,label=\"calls\"];\n";
+    }
+  }
+
   // Write the footer
   File << "}\n";
   File.close();
@@ -533,9 +560,11 @@ bool ProgramGraph::finalize(
         MuArchState &St = Nodes.at(CallNode).getState();
         St.MaxCycles += *Cost;
         St.MinCycles += *Cost;
+        ExternalCallRenders.push_back({CallNode, Name.str(), *Cost, true});
         return;
       }
     }
+    ExternalCallRenders.push_back({CallNode, Name.str(), 0, false});
     PendingUnsound.push_back({CallNode, Name.str()});
   };
 
