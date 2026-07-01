@@ -19,6 +19,17 @@ public:
   /// -fram-* options are set, so default runs are unaffected.
   std::vector<llvm::MachineFunctionPass *>
   getMemoryModelPasses(llvm::TimingAnalysisResults &TAR) const override;
+
+  /// Measured worst-case body cost for the body-less integer `__mspabi_*`
+  /// soft-arithmetic helpers (mul/div/mod/shift) the MSP430 backend
+  /// synthesizes. LLTA cannot analyze them (MSP430X-encoded, no IR body), so
+  /// they are costed from hardware measurement (see ABI_FINDINGS.md). The
+  /// deployment column is chosen by -fram-wait-states: 0 -> compute (NWAITS=0,
+  /// RAM/<=8 MHz), 1 -> fram_tot (NWAITS=1, FRAM @16 MHz). Returns nullopt for
+  /// any other wait-state value (unmeasured) and for float/double/libm callees,
+  /// leaving them UNSOUND.
+  std::optional<unsigned>
+  getExternalCallCost(llvm::StringRef CalleeName) const override;
 };
 
 } // namespace llta
