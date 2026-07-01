@@ -20,14 +20,16 @@ public:
   std::vector<llvm::MachineFunctionPass *>
   getMemoryModelPasses(llvm::TimingAnalysisResults &TAR) const override;
 
-  /// Measured worst-case body cost for the body-less integer `__mspabi_*`
-  /// soft-arithmetic helpers (mul/div/mod/shift) the MSP430 backend
-  /// synthesizes. LLTA cannot analyze them (MSP430X-encoded, no IR body), so
-  /// they are costed from hardware measurement (see ABI_FINDINGS.md). The
-  /// deployment column is chosen by -fram-wait-states: 0 -> compute (NWAITS=0,
-  /// RAM/<=8 MHz), 1 -> fram_tot (NWAITS=1, FRAM @16 MHz). Returns nullopt for
-  /// any other wait-state value (unmeasured) and for float/double/libm callees,
-  /// leaving them UNSOUND.
+  /// Measured worst-case body cost for the body-less `__mspabi_*`
+  /// soft-arithmetic helpers the MSP430 backend synthesizes. LLTA cannot
+  /// analyze them (MSP430X-encoded, no IR body), so they are costed from
+  /// hardware measurement (see ABI_FINDINGS.md). Costs the 32 helpers whose
+  /// measurement is sound or trustworthy (the `ok` + `STATIC-UNSOUND` regimes)
+  /// using the placement-independent `compute` column, which is valid only at
+  /// -fram-wait-states=0 (NWAITS=0, RAM/<=8 MHz). Returns nullopt -- leaving
+  /// the call UNSOUND -- when: -fram-wait-states >= 1 (the per-call FRAM fetch
+  /// penalty is layout-dependent, with no portable upper bound), or the callee
+  /// is a `no-static` FP/64-bit helper (no derivable sound ceiling) or libm.
   std::optional<unsigned>
   getExternalCallCost(llvm::StringRef CalleeName) const override;
 };
